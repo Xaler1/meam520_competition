@@ -1,6 +1,7 @@
 import numpy as np
 
 import rospy
+from core.interfaces import ArmController
 from lib.calculateFK import FK
 from lib.IK_velocity_null import IK_velocity_null
 from lib.IK_velocity import IK_velocity
@@ -32,7 +33,6 @@ class Follower:
     target = None
     complete = False
     last_iteration_time = None
-    arm = None
     start = None
     start_time = None
 
