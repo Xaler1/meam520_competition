@@ -13,7 +13,7 @@ from lib.calcAngDiff import calcAngDiff
 from lib.utils import euler_to_se3
 
 from threading import Thread
-from trajectories import Trajectory, Waypoints, Spline
+from trajectories import Trajectory, Waypoints, Spline, HermitSpline
 
 
 class Controller:
@@ -118,7 +118,7 @@ class Controller:
         target4 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id] + np.array([0, 0, 0.03]))
         target5 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id] + np.array([0, 0, 0.02]))
 
-        self.trajectory = Spline([transforms[-1], target1, target2, target3, target4, target5])
+        self.trajectory = HermitSpline([transforms[-1], target1, target5])
         self.start_time = time_in_seconds()
         self.active = True
 
