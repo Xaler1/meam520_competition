@@ -13,7 +13,7 @@ from lib.calcAngDiff import calcAngDiff
 from lib.utils import euler_to_se3
 
 from threading import Thread
-from trajectories import Trajectory, Waypoints
+from trajectories import Trajectory, Waypoints, Spline
 
 
 class Controller:
@@ -26,6 +26,7 @@ class Controller:
         rospy.init_node("team_script")
         callback = lambda state: self.callback(state)
         self.arm = ArmController(on_state_callback=callback)
+        self.arm.set_arm_speed(0.5)
         self.detector = ObjectDetector()
         self.fk = FK()
         self.ik = IK()
@@ -43,10 +44,22 @@ class Controller:
             _, T0e = self.fk.forward(q)
             t = time_in_seconds() - self.start_time
 
-            v, omega, done = self.trajectory(T0e, t)
+            v, omega, xdes, Rdes, done = self.trajectory(T0e, t)
             if done:
                 self.active = False
                 return
+
+            R = (T0e[:3, :3])
+            x = (T0e[0:3, 3])
+            curr_x = np.copy(x.flatten())
+            if xdes is not None:
+                # First Order Integrator, Proportional Control with Feed Forward
+                kp = 5
+                v = v + kp * (xdes - curr_x)
+            if Rdes is not None:
+                # Rotation
+                kr = 5
+                omega = omega + kr * calcAngDiff(Rdes, R).flatten()
 
             dq = IK_velocity(q, v, omega).flatten()
 
@@ -96,15 +109,15 @@ class Controller:
 
         target_id = int(input("Select block to pick up: "))
         rot = block_rotations[target_id]
-        rotation_z = np.arctan2(rot[1, 0], rot[0, 0]) % (np.pi / 2) - np.pi/4
+        rotation_z = np.arctan2(rot[1, 0], rot[0, 0]) % (np.pi / 2)
 
-        target_loc = block_locations[target_id] + np.array([0, 0, 0.1])
+        target_loc = block_locations[target_id] + np.array([0, 0, 0.2])
         target1 = euler_to_se3(-np.pi, 0, rotation_z, target_loc)
-        target2 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id])
+        target2 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id] + np.array([0, 0, 0.05]))
 
-        self.trajectory = Waypoints([target1, target2])
-        self.active = True
+        self.trajectory = Spline([transforms[-1], target1, target2])
         self.start_time = time_in_seconds()
+        self.active = True
 
         input("Press enter to continue...")
 
