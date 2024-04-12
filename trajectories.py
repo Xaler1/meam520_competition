@@ -1,6 +1,7 @@
 import numpy as np
 from scipy.interpolate import splprep, splev, make_interp_spline
 from lib.calcAngDiff import calcAngDiff
+from matplotlib import pyplot as plt
 
 from lib.IK_position_null import IK
 
@@ -57,20 +58,28 @@ class Spline(Trajectory):
         x = locs[:, 0]
         y = locs[:, 1]
         z = locs[:, 2]
-        self.progress_spline, u = splprep([x, y, z], s=0.1)
+        self.progress_spline, u = splprep([x, y, z], s=0)
         self.easing_time = 0.5
         total_length = 0
         for i in range(1, len(locs)):
             total_length += np.linalg.norm(locs[i] - locs[i - 1])
-        self.total_time = total_length / 0.07
+        self.total_time = total_length / 0.1
         ease_start = self.easing_time / self.total_time
         ease_end = 1 - ease_start
         x = [0.0, ease_start, 0.5, ease_end, 1.0]
-        y = [0.0, 0.1, 0.5, 0.9, 1.0]
+        y = [0.0, ease_start * 0.3, 0.5, ease_end + ease_start * 0.7, 1.0]
         self.ease_spline, u = splprep([x, y], s=0, k=3)
+
+        ts = np.linspace(0, 1, 100)
+        out = splev(ts, self.ease_spline)
+        plt.plot(out[0], out[1], 'b')
+        plt.plot(x, y, 'ro')
+        plt.savefig("plots/easing_spline.png")
 
         print("Starting spline trajectory")
         print(f"Estimated time: {self.total_time} seconds")
+        print("Final point defined:", self.points[-1][:3, 3])
+        print("Final point on spline:", splev(1.0, self.progress_spline))
 
     def __call__(self, T0e, t):
         progress = splev(t / self.total_time, self.ease_spline)[1]
@@ -85,7 +94,7 @@ class Spline(Trajectory):
         axis = calcAngDiff(self.points[-1][:3, :3], T0e[:3, :3])
         if np.linalg.norm(axis) > 0.02:
             # normalize to 0.5 rad/s
-            axis = 0.5 * axis / np.linalg.norm(axis)
+            axis = 0.7 * axis / np.linalg.norm(axis)
 
         xdes = np.array([x, y, z])
         vdes = np.array([dx, dy, dz]) * speed_multiplier

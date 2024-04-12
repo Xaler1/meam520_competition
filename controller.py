@@ -114,8 +114,11 @@ class Controller:
         target_loc = block_locations[target_id] + np.array([0, 0, 0.2])
         target1 = euler_to_se3(-np.pi, 0, rotation_z, target_loc)
         target2 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id] + np.array([0, 0, 0.05]))
+        target3 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id] + np.array([0, 0, 0.04]))
+        target4 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id] + np.array([0, 0, 0.03]))
+        target5 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id] + np.array([0, 0, 0.02]))
 
-        self.trajectory = Spline([transforms[-1], target1, target2])
+        self.trajectory = Spline([transforms[-1], target1, target2, target3, target4, target5])
         self.start_time = time_in_seconds()
         self.active = True
 
