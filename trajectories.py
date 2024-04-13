@@ -122,11 +122,11 @@ class HermitSpline(Trajectory):
         total_length = 0
         for i in range(1, len(locs)):
             total_length += np.linalg.norm(locs[i] - locs[i - 1])
-        self.total_time = total_length / 0.15
+        self.total_time = total_length / 0.1
         ease_start = self.easing_time / self.total_time
         ease_end = 1 - ease_start
         x = [0.0, ease_start, 0.5, ease_end, 1.0]
-        y = [0.0, ease_start * 0.3, 0.5, ease_end + ease_start * 0.7, 1.0]
+        y = [0.0, ease_start * 0.15, 0.5, ease_end + ease_start * 0.85, 1.0]
         self.ease_spline, u = splprep([x, y], s=0, k=3)
         self.ts = []
         self.actual_locs = []
@@ -157,8 +157,8 @@ class HermitSpline(Trajectory):
             axis = np.zeros(3)
 
         xdes = np.array([x, y, z])
-        vdes = np.array([dx, dy, dz]) * speed_multiplier / 2
-        return vdes, axis, xdes, None, False
+        vdes = np.array([dx, dy, dz]) * speed_multiplier / 4
+        return None, axis, xdes, None, False
 
 
 

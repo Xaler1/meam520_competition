@@ -14,8 +14,12 @@ from lib.utils import euler_to_se3
 
 from threading import Thread
 from trajectories import Trajectory, Waypoints, Spline, HermitSpline, BetterSpline
+import time
 from time import sleep
+from enum import Enum
 
+class Positions(Enum):
+    STATIC_OBSERVATION = euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.3, 0.5]))
 
 class Controller:
     active = False
@@ -32,8 +36,6 @@ class Controller:
         self.detector = ObjectDetector()
         self.fk = FK()
         self.ik = IK()
-        self.vs = np.zeros((3, 3))
-        self.past_vs = 0
 
 
     def start_position(self):
@@ -59,7 +61,7 @@ class Controller:
             curr_x = np.copy(x.flatten())
             if v is None:
                 v = np.zeros(3)
-                kp = 4
+                kp = 10
             if xdes is not None:
                 # First Order Integrator, Proportional Control with Feed Forward
                 v = v + kp * (xdes - curr_x)
@@ -67,13 +69,6 @@ class Controller:
                 # Rotation
                 kr = 1
                 omega = omega + kr * calcAngDiff(Rdes, R).flatten()
-
-            self.vs = np.roll(self.vs, 1, axis=0)
-            self.vs[0] = v
-            if self.past_vs > 3:
-                v = np.mean(self.vs, axis=0)
-            self.past_vs += 1
-            self.vs[0] = v
 
             # centering
             lower = np.array([-2.8973, -1.7628, -2.8973, -3.0718, -2.8973, -0.0175, -2.8973])
@@ -83,6 +78,8 @@ class Controller:
 
             # Velocity Inverse Kinematics
             dq = IK_velocity_null(q, v, omega, - k0 * (q - q_e)).flatten()
+
+
 
             if self.last_iteration_time == None:
                 self.last_iteration_time = time_in_seconds()
@@ -103,6 +100,21 @@ class Controller:
         t = Thread(target=self.arm.close_gripper)
         t.start()
         return t
+
+    def move_to_transform(self, T):
+        q= self.arm.get_joint_positions()
+        _, T0e = self.fk.forward(q)
+        dist, ang = IK.distance_and_angle(T0e, T)
+        if dist < 0.01 and ang < 0.01:
+            return
+        v, omega, xdes, Rdes, done = self.trajectory(T0e, 0)
+        while not done:
+            q = self.arm.get_joint_positions()
+            _, T0e = self.fk.forward(q)
+            v, omega, xdes, Rdes, done = self.trajectory(T0e, 0)
+            sleep(0.5)
+        return
+
 
     def start(self):
         H_ee_camera = self.detector.get_H_ee_camera()
@@ -144,11 +156,19 @@ class Controller:
             target1 = euler_to_se3(-np.pi, 0, rotation_z, target_loc)
             target2 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id])
 
-            self.trajectory = HermitSpline([transforms[-1], target1, target2])
-            self.start_time = time_in_seconds()
-            self.active = True
-            while self.active:
-                sleep(0.5)
+
+            for target in [target1, target2]:
+                print("Moving to target...")
+                start = time.time()
+                new_q, _, _, _ = self.ik.inverse(target, q, alpha=0.86)
+                end = time.time()
+                print("Time to compute inverse kinematics:", end - start)
+                self.arm.safe_move_to_position(new_q)
+                end2 = time.time()
+                print("Time to move arm:", end2 - end)
+                print("Target reached!")
+
+            #self.arm.exec_gripper_cmd(0.048, 50)
 
             input("Press enter to continue...")
 
