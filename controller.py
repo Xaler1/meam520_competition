@@ -32,6 +32,8 @@ class Controller:
         self.detector = ObjectDetector()
         self.fk = FK()
         self.ik = IK()
+        self.vs = np.zeros((3, 3))
+        self.past_vs = 0
 
 
     def start_position(self):
@@ -53,7 +55,7 @@ class Controller:
 
             R = (T0e[:3, :3])
             x = (T0e[0:3, 3])
-            kp = 1
+            kp = 4
             curr_x = np.copy(x.flatten())
             if v is None:
                 v = np.zeros(3)
@@ -66,7 +68,21 @@ class Controller:
                 kr = 1
                 omega = omega + kr * calcAngDiff(Rdes, R).flatten()
 
-            dq = IK_velocity(q, v, omega).flatten()
+            self.vs = np.roll(self.vs, 1, axis=0)
+            self.vs[0] = v
+            if self.past_vs > 3:
+                v = np.mean(self.vs, axis=0)
+            self.past_vs += 1
+            self.vs[0] = v
+
+            # centering
+            lower = np.array([-2.8973, -1.7628, -2.8973, -3.0718, -2.8973, -0.0175, -2.8973])
+            upper = np.array([2.8973, 1.7628, 2.8973, -0.0698, 2.8973, 3.7525, 2.8973])
+            q_e = lower + (upper - lower) / 2
+            k0 = 1.0
+
+            # Velocity Inverse Kinematics
+            dq = IK_velocity_null(q, v, omega, - k0 * (q - q_e)).flatten()
 
             if self.last_iteration_time == None:
                 self.last_iteration_time = time_in_seconds()
@@ -114,24 +130,26 @@ class Controller:
         for i in range(len(block_locations)):
             block_locations[i][2] = 0.225
 
-        target_id = int(input("Select block to pick up: "))
-        rot = block_rotations[target_id]
-        rotation_z = np.arctan2(rot[1, 0], rot[0, 0]) % (np.pi / 2)
-        if rotation_z > np.pi / 4:
-            rotation_z -= np.pi / 2
-        elif rotation_z < -np.pi / 4:
-            rotation_z += np.pi / 2
+        #target_id = int(input("Select block to pick up: "))
+        for target_id in range(len(block_locations)):
+            self.arm.safe_move_to_position(q)
+            rot = block_rotations[target_id]
+            rotation_z = np.arctan2(rot[1, 0], rot[0, 0]) % (np.pi / 2)
+            if rotation_z > np.pi / 4:
+                rotation_z -= np.pi / 2
+            elif rotation_z < -np.pi / 4:
+                rotation_z += np.pi / 2
 
-        target_loc = block_locations[target_id] + np.array([0, 0, 0.1])
-        target1 = euler_to_se3(-np.pi, 0, rotation_z, target_loc)
-        target2 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id])
+            target_loc = block_locations[target_id] + np.array([0, 0, 0.2])
+            target1 = euler_to_se3(-np.pi, 0, rotation_z, target_loc)
+            target2 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id])
 
-        self.trajectory = HermitSpline([transforms[-1], target1, target2])
-        self.start_time = time_in_seconds()
-        self.active = True
-        # while self.active:
-        #     sleep(0.1)
+            self.trajectory = HermitSpline([transforms[-1], target1, target2])
+            self.start_time = time_in_seconds()
+            self.active = True
+            while self.active:
+                sleep(0.5)
 
-        input("Press enter to continue...")
+            input("Press enter to continue...")
 
 

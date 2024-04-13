@@ -128,16 +128,25 @@ class HermitSpline(Trajectory):
         x = [0.0, ease_start, 0.5, ease_end, 1.0]
         y = [0.0, ease_start * 0.3, 0.5, ease_end + ease_start * 0.7, 1.0]
         self.ease_spline, u = splprep([x, y], s=0, k=3)
+        self.ts = []
+        self.actual_locs = []
 
 
     def __call__(self, T0e, t):
         progress = splev(t / self.total_time, self.ease_spline)[1]
         speed_multiplier = splev(t / self.total_time, self.ease_spline, der=1)[1]
 
-        if progress >= 1.0:
+        if progress >= 1.0 or t > self.total_time:
             print("Finished spline trajectory")
+            actual_locs = np.array(self.actual_locs)
+
+            #plt.plot(, 'r')
+
+
             return None, None, None, None, True
         x, y, z = self.spline(progress)
+        self.ts.append(t)
+        self.actual_locs.append([x, y, z])
         dx, dy, dz = self.derivative(progress)
 
         axis = calcAngDiff(self.points[-1][:3, :3], T0e[:3, :3])
@@ -148,8 +157,8 @@ class HermitSpline(Trajectory):
             axis = np.zeros(3)
 
         xdes = np.array([x, y, z])
-        vdes = np.array([dx, dy, dz]) * speed_multiplier
-        return None, axis, xdes, None, False
+        vdes = np.array([dx, dy, dz]) * speed_multiplier / 2
+        return vdes, axis, xdes, None, False
 
 
 
@@ -166,7 +175,7 @@ class BetterSpline(Trajectory):
             t[i] = t[i - 1] + np.linalg.norm(locs[i] - locs[i - 1])
         t /= t[-1]
 
-        self.spline = CubicSpline(t, locs, bc_type='clamped')
+        self.spline = CubicSpline(t, locs, bc_type='natural')
         self.derivative = self.spline.derivative()
 
         self.easing_time = 0.5
@@ -209,5 +218,5 @@ class BetterSpline(Trajectory):
             axis = 0.7 * axis / np.linalg.norm(axis)
 
         xdes = np.array([x, y, z])
-        vdes = np.array([dx, dy, dz]) * speed_multiplier / 4
+        vdes = np.array([dx, dy, dz])
         return vdes, axis, xdes, None, False
