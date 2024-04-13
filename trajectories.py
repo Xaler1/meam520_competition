@@ -58,9 +58,7 @@ class Spline(Trajectory):
         x = locs[:, 0]
         y = locs[:, 1]
         z = locs[:, 2]
-        weights = np.ones(len(locs))
-        weights *= 10
-        self.progress_spline, u = splprep([x, y, z], s=0, w=weights)
+        self.progress_spline, u = splprep([x, y, z], s=0)
         self.easing_time = 0.5
         total_length = 0
         for i in range(1, len(locs)):
@@ -94,13 +92,15 @@ class Spline(Trajectory):
         dx, dy, dz = splev(progress, self.progress_spline, der=1)
 
         axis = calcAngDiff(self.points[-1][:3, :3], T0e[:3, :3])
-        if np.linalg.norm(axis) > 0.02:
+        if np.linalg.norm(axis) > 0.05:
             # normalize to 0.5 rad/s
             axis = 0.7 * axis / np.linalg.norm(axis)
+        else:
+            axis = np.zeros(3)
 
         xdes = np.array([x, y, z])
         vdes = np.array([dx, dy, dz]) * speed_multiplier
-        return vdes, axis, xdes, None, False
+        return None, axis, xdes, None, False
 
 
 class HermitSpline(Trajectory):
@@ -122,7 +122,7 @@ class HermitSpline(Trajectory):
         total_length = 0
         for i in range(1, len(locs)):
             total_length += np.linalg.norm(locs[i] - locs[i - 1])
-        self.total_time = total_length / 0.1
+        self.total_time = total_length / 0.15
         ease_start = self.easing_time / self.total_time
         ease_end = 1 - ease_start
         x = [0.0, ease_start, 0.5, ease_end, 1.0]
@@ -141,13 +141,15 @@ class HermitSpline(Trajectory):
         dx, dy, dz = self.derivative(progress)
 
         axis = calcAngDiff(self.points[-1][:3, :3], T0e[:3, :3])
-        if np.linalg.norm(axis) > 0.02:
+        if np.linalg.norm(axis) > 0.05:
             # normalize to 0.5 rad/s
             axis = 0.7 * axis / np.linalg.norm(axis)
+        else:
+            axis = np.zeros(3)
 
         xdes = np.array([x, y, z])
         vdes = np.array([dx, dy, dz]) * speed_multiplier
-        return vdes, axis, xdes, None, False
+        return None, axis, xdes, None, False
 
 
 

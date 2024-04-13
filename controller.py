@@ -22,6 +22,7 @@ class Controller:
     last_iteration_time = None
     start_time = 0
     trajectory: Trajectory = None
+    prev_v = None
 
     def __init__(self):
         rospy.init_node("team_script")
@@ -56,7 +57,7 @@ class Controller:
             curr_x = np.copy(x.flatten())
             if v is None:
                 v = np.zeros(3)
-                kp = 1
+                kp = 4
             if xdes is not None:
                 # First Order Integrator, Proportional Control with Feed Forward
                 v = v + kp * (xdes - curr_x)
@@ -66,7 +67,6 @@ class Controller:
                 omega = omega + kr * calcAngDiff(Rdes, R).flatten()
 
             dq = IK_velocity(q, v, omega).flatten()
-
 
             if self.last_iteration_time == None:
                 self.last_iteration_time = time_in_seconds()
@@ -111,6 +111,9 @@ class Controller:
             block_rotations.append(world_pose[:3, :3])
             print(block_locations[-1])
 
+        for i in range(len(block_locations)):
+            block_locations[i][2] = 0.225
+
         target_id = int(input("Select block to pick up: "))
         rot = block_rotations[target_id]
         rotation_z = np.arctan2(rot[1, 0], rot[0, 0]) % (np.pi / 2)
@@ -121,14 +124,13 @@ class Controller:
 
         target_loc = block_locations[target_id] + np.array([0, 0, 0.1])
         target1 = euler_to_se3(-np.pi, 0, rotation_z, target_loc)
-        target5 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id])
+        target2 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id])
 
-        self.trajectory = BetterSpline([transforms[-1], target1, target5])
+        self.trajectory = HermitSpline([transforms[-1], target1, target2])
         self.start_time = time_in_seconds()
         self.active = True
-        while self.active:
-            sleep(0.1)
-            pass
+        # while self.active:
+        #     sleep(0.1)
 
         input("Press enter to continue...")
 
