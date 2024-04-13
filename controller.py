@@ -13,7 +13,8 @@ from lib.calcAngDiff import calcAngDiff
 from lib.utils import euler_to_se3
 
 from threading import Thread
-from trajectories import Trajectory, Waypoints, Spline, HermitSpline
+from trajectories import Trajectory, Waypoints, Spline, HermitSpline, BetterSpline
+from time import sleep
 
 
 class Controller:
@@ -51,14 +52,17 @@ class Controller:
 
             R = (T0e[:3, :3])
             x = (T0e[0:3, 3])
+            kp = 1
             curr_x = np.copy(x.flatten())
+            if v is None:
+                v = np.zeros(3)
+                kp = 1
             if xdes is not None:
                 # First Order Integrator, Proportional Control with Feed Forward
-                kp = 5
                 v = v + kp * (xdes - curr_x)
             if Rdes is not None:
                 # Rotation
-                kr = 5
+                kr = 1
                 omega = omega + kr * calcAngDiff(Rdes, R).flatten()
 
             dq = IK_velocity(q, v, omega).flatten()
@@ -110,17 +114,21 @@ class Controller:
         target_id = int(input("Select block to pick up: "))
         rot = block_rotations[target_id]
         rotation_z = np.arctan2(rot[1, 0], rot[0, 0]) % (np.pi / 2)
+        if rotation_z > np.pi / 4:
+            rotation_z -= np.pi / 2
+        elif rotation_z < -np.pi / 4:
+            rotation_z += np.pi / 2
 
-        target_loc = block_locations[target_id] + np.array([0, 0, 0.2])
+        target_loc = block_locations[target_id] + np.array([0, 0, 0.1])
         target1 = euler_to_se3(-np.pi, 0, rotation_z, target_loc)
-        target2 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id] + np.array([0, 0, 0.05]))
-        target3 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id] + np.array([0, 0, 0.04]))
-        target4 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id] + np.array([0, 0, 0.03]))
-        target5 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id] + np.array([0, 0, 0.02]))
+        target5 = euler_to_se3(-np.pi, 0, rotation_z, block_locations[target_id])
 
-        self.trajectory = HermitSpline([transforms[-1], target1, target5])
+        self.trajectory = BetterSpline([transforms[-1], target1, target5])
         self.start_time = time_in_seconds()
         self.active = True
+        while self.active:
+            sleep(0.1)
+            pass
 
         input("Press enter to continue...")
 

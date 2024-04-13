@@ -1,5 +1,5 @@
 import numpy as np
-from scipy.interpolate import splprep, splev, make_interp_spline, CubicHermiteSpline
+from scipy.interpolate import splprep, splev, make_interp_spline, CubicHermiteSpline, BSpline, CubicSpline
 from lib.calcAngDiff import calcAngDiff
 from matplotlib import pyplot as plt
 
@@ -58,7 +58,9 @@ class Spline(Trajectory):
         x = locs[:, 0]
         y = locs[:, 1]
         z = locs[:, 2]
-        self.progress_spline, u = splprep([x, y, z], s=0)
+        weights = np.ones(len(locs))
+        weights *= 10
+        self.progress_spline, u = splprep([x, y, z], s=0, w=weights)
         self.easing_time = 0.5
         total_length = 0
         for i in range(1, len(locs)):
@@ -145,4 +147,65 @@ class HermitSpline(Trajectory):
 
         xdes = np.array([x, y, z])
         vdes = np.array([dx, dy, dz]) * speed_multiplier
+        return vdes, axis, xdes, None, False
+
+
+
+class BetterSpline(Trajectory):
+    def __init__(self, points):
+        self.points = np.array(points)
+        locs = self.points[:, :3, 3]
+        while len(locs) < 4:
+            locs = np.insert(locs, -1, (locs[-1] + locs[-2]) / 2, axis=0)
+
+        # make t values proportional to distances
+        t = np.zeros(len(locs))
+        for i in range(1, len(locs)):
+            t[i] = t[i - 1] + np.linalg.norm(locs[i] - locs[i - 1])
+        t /= t[-1]
+
+        self.spline = CubicSpline(t, locs, bc_type='clamped')
+        self.derivative = self.spline.derivative()
+
+        self.easing_time = 0.5
+        total_length = 0
+        for i in range(1, len(locs)):
+            total_length += np.linalg.norm(locs[i] - locs[i - 1])
+        self.total_time = total_length / 0.1
+        ease_start = self.easing_time / self.total_time
+        ease_end = 1 - ease_start
+        x = [0.0, ease_start, 0.5, ease_end, 1.0]
+        y = [0.0, ease_start * 0.3, 0.5, ease_end + ease_start * 0.7, 1.0]
+        self.ease_spline, u = splprep([x, y], s=0, k=3)
+
+        print("Starting spline trajectory")
+        print(f"Estimated time: {self.total_time} seconds")
+
+        ts = np.linspace(0, 1, 100)
+        out = splev(ts, self.ease_spline)
+        speeds = splev(ts, self.ease_spline, der=1)
+        plt.plot(out[0], out[1], 'b', label="progress")
+        plt.plot(ts, speeds[1], 'g', label="speed")
+        plt.plot(x, y, 'ro')
+        plt.legend()
+        plt.savefig("plots/better_spline.png")
+
+
+    def __call__(self, T0e, t):
+        progress = splev(t / self.total_time, self.ease_spline)[1]
+        speed_multiplier = splev(t / self.total_time, self.ease_spline, der=1)[1]
+
+        if progress >= 1.0:
+            print("Finished spline trajectory")
+            return None, None, None, None, True
+        x, y, z = self.spline(progress)
+        dx, dy, dz = self.derivative(progress)
+
+        axis = calcAngDiff(self.points[-1][:3, :3], T0e[:3, :3])
+        if np.linalg.norm(axis) > 0.02:
+            # normalize to 0.5 rad/s
+            axis = 0.7 * axis / np.linalg.norm(axis)
+
+        xdes = np.array([x, y, z])
+        vdes = np.array([dx, dy, dz]) * speed_multiplier / 4
         return vdes, axis, xdes, None, False
