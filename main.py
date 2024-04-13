@@ -14,15 +14,17 @@ from core.utils import time_in_seconds
 from lib.calculateFK import FK
 from lib.IK_position_null import IK
 from lib.utils import euler_to_se3
-from controller import Controller
 from enum import Enum
 from multiprocessing import Process, Queue
 from computer import Computer, Task, TaskTypes
 from executer import Executer, Command, CommandTypes
 from time import sleep
 
-class Positions(Enum):
+class KnownPoses(Enum):
     STATIC_OBSERVATION = euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.15, 0.5]))
+
+class KnownConfigs(Enum):
+    START = np.array([-0.01779206, -0.76012354, 0.01978261, -2.34205014, 0.02984053, 1.54119353 + np.pi / 2, 0.75344866])
 
 if __name__ == "__main__":
     try:
@@ -41,7 +43,7 @@ if __name__ == "__main__":
     executer_process = Process(target=executer.run)
     executer_process.start()
 
-    command = Command(CommandTypes.MOVE_TO, np.array([-0.01779206, -0.76012354, 0.01978261, -2.34205014, 0.02984053, 1.54119353 + np.pi / 2, 0.75344866]))
+    command = Command(CommandTypes.MOVE_TO, KnownConfigs.START.value)
     computer_to_executer.put(command)
     while from_executer.empty():
         sleep(0.1)
@@ -65,7 +67,7 @@ if __name__ == "__main__":
         sleep(0.1)
     from_executer.get()
 
-    task = Task(TaskTypes.MOVE_TO, Positions.STATIC_OBSERVATION.value)
+    task = Task(TaskTypes.MOVE_TO, KnownPoses.STATIC_OBSERVATION.value)
     to_computer.put(task)
     while from_executer.empty():
         sleep(0.1)
@@ -91,13 +93,13 @@ if __name__ == "__main__":
         static_block_poses[i] = euler_to_se3(-np.pi, 0, rotation_z, loc)
         task = Task(TaskTypes.GRAB_BLOCK, static_block_poses[i])
         to_computer.put(task)
-        task = Task(TaskTypes.MOVE_TO, Positions.STATIC_OBSERVATION.value)
+        task = Task(TaskTypes.MOVE_TO, KnownPoses.STATIC_OBSERVATION.value)
         to_computer.put(task)
 
-    computer.join()
-    executer.join()
-
-
+    input("Press Enter to kill all")
+    print("Terminating")
+    computer_process.kill()
+    executer_process.kill()
 
 
     # Uncomment to get middle camera depth/rgb images

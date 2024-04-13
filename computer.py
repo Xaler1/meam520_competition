@@ -42,10 +42,10 @@ class Computer:
                     target1 = task.target_pose.copy()
                     target1[2, 3] += 0.15
                     q, _, _, _ = self.ik.inverse(target1, self.default_pose, alpha=0.86)
-                    command = Command(CommandTypes.MOVE_TO, q)
+                    command = Command(CommandTypes.MOVE_TO, q, do_async=True)
                     self.to_executer.put(command)
                     q, _, _, _ = self.ik.inverse(task.target_pose, q, alpha=0.86)
-                    command = Command(CommandTypes.MOVE_TO, q)
+                    command = Command(CommandTypes.MOVE_TO, q, do_async=True)
                     self.to_executer.put(command)
                     command = Command(CommandTypes.CLOSE_GRIPPER)
                     self.to_executer.put(command)

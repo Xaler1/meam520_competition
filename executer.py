@@ -15,6 +15,7 @@ from enum import Enum
 from dataclasses import dataclass
 import numpy as np
 from threading import Thread
+from time import sleep
 
 class CommandTypes(Enum):
     MOVE_TO = 1
@@ -62,6 +63,10 @@ class Executer:
         t.start()
         return t
 
+    def move_arm_async(self, arm, q) -> Thread:
+        t = Thread(target=arm.safe_move_to_position, args=(q,))
+        t.start()
+        return t
 
 
     def run(self):
@@ -75,12 +80,24 @@ class Executer:
                 command = self.from_computer.get()
                 if command.command_type == CommandTypes.MOVE_TO:
                     print("Executer got command to move")
-                    arm.safe_move_to_position(command.target_q)
+                    if command.do_async and current_config is not None:
+                        diff = np.abs(current_config - command.target_q)
+                        max_diff = np.max(diff)
+                        timing = 4 * max_diff
+                        thread = self.move_arm_async(arm, command.target_q)
+                        sleep(timing)
+                    else:
+                        arm.safe_move_to_position(command.target_q)
                     current_config = command.target_q
                 elif command.command_type == CommandTypes.CLOSE_GRIPPER:
-                    #arm.close_gripper()
+                    print("Executer got command to close gripper")
+                    # if command.do_async:
+                    #     self.close_gripper_async(arm)
+                    # else:
+                    #     arm.close_gripper()
                     pass
                 elif command.command_type == CommandTypes.OPEN_GRIPPER:
+                    print("Executer got command to open gripper")
                     if command.do_async:
                         self.open_gripper_async(arm)
                     else:
