@@ -23,6 +23,18 @@ from time import sleep
 class KnownPoses(Enum):
     STATIC_OBSERVATION = euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.15, 0.5]))
 
+STACK_0 = [
+        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.225])),
+        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.275])),
+        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.325])),
+        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.375])),
+        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.425])),
+        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.475])),
+    ]
+
+
+
+
 class KnownConfigs(Enum):
     START = np.array([-0.01779206, -0.76012354, 0.01978261, -2.34205014, 0.02984053, 1.54119353 + np.pi / 2, 0.75344866])
 
@@ -47,6 +59,7 @@ if __name__ == "__main__":
     computer_to_executer.put(command)
     while from_executer.empty():
         sleep(0.1)
+    print("Moved to start pose")
     from_executer.get()
 
 
@@ -65,12 +78,14 @@ if __name__ == "__main__":
     computer_to_executer.put(command)
     while from_executer.empty():
         sleep(0.1)
+    print("Opened gripper")
     from_executer.get()
 
     task = Task(TaskTypes.MOVE_TO, KnownPoses.STATIC_OBSERVATION.value)
     to_computer.put(task)
     while from_executer.empty():
         sleep(0.1)
+    print("Moved to static observation")
     from_executer.get()
 
     command = Command(CommandTypes.GET_OBSERVED_BLOCKS)
@@ -83,18 +98,24 @@ if __name__ == "__main__":
     for i in range(len(static_block_poses)):
         rot = static_block_poses[i][:3, :3]
         loc = static_block_poses[i][:3, 3]
-        rotation_z = np.arctan2(rot[1, 0], rot[0, 0]) % (np.pi / 2)
-        if rotation_z > np.pi / 4:
-            rotation_z -= np.pi / 2
-        elif rotation_z < -np.pi / 4:
-            rotation_z += np.pi / 2
+        yaw = np.arctan2(rot[1, 0], rot[0, 0])
+        # find closest 90 degree rotation
+        while yaw < -np.pi / 2:
+            yaw += np.pi / 2
+        while yaw > np.pi / 2:
+            yaw -= np.pi / 2
+
+
+
+        print("----------------------Rotation Z", yaw)
 
         loc[2] = 0.225
-        static_block_poses[i] = euler_to_se3(-np.pi, 0, rotation_z, loc)
+        static_block_poses[i] = euler_to_se3(-np.pi, 0, yaw, loc)
         task = Task(TaskTypes.GRAB_BLOCK, static_block_poses[i])
         to_computer.put(task)
-        task = Task(TaskTypes.MOVE_TO, KnownPoses.STATIC_OBSERVATION.value)
+        task = Task(TaskTypes.PLACE_BLOCK, STACK_0[i])
         to_computer.put(task)
+
 
     input("Press Enter to kill all")
     print("Terminating")
