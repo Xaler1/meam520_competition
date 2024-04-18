@@ -143,7 +143,8 @@ class Executor:
             self.to_main.put(poses)
 
         print("Executor finished", id)
-        self.to_main.put(id)
+        if command.command_type != CommandTypes.GET_OBSERVED_BLOCKS:
+            self.to_main.put(id)
         return current_config
 
     def run(self):
