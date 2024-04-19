@@ -29,7 +29,7 @@ class Computer:
         self.ik = IK()
         self.default_pose = np.array([0, 0, 0, -np.pi / 2, 0, np.pi / 2, np.pi / 4])
 
-    def move_command(self, id, order, target, start=None, do_async=False, extra_fast=False):
+    def move_command(self, id: str, order: int, target, start=None, do_async=False, extra_fast=False):
         if start is None:
             start = self.default_pose
         q, _, _, _ = self.ik.inverse(target, start, alpha=0.86)
@@ -44,10 +44,14 @@ class Computer:
                 task = self.from_main.get()
                 target = task.target_pose
                 id = task.id
+
+                # Move to a location
                 if task.task_type == TaskTypes.MOVE_TO:
                     print("Computer got command to move")
                     self.move_command(id, order, target, do_async=False)
                     order += 1
+
+                # Move to and grab a block
                 elif task.task_type == TaskTypes.GRAB_BLOCK:
                     print("Computer got command to grab block")
                     hover_pose = task.target_pose.copy()
@@ -61,6 +65,8 @@ class Computer:
                     self.to_executor.put(command)
                     command = Command(id+"-3", CommandTypes.MOVE_TO, q, do_async=True, order=order)
                     self.to_executor.put(command)
+
+                # Move to a location and place a block
                 elif task.task_type == TaskTypes.PLACE_BLOCK:
                     print("Computer got command to place block")
                     hover_pose = task.target_pose.copy()
@@ -74,6 +80,8 @@ class Computer:
                     self.to_executor.put(command)
                     command = Command(id+"-3", CommandTypes.MOVE_TO, q, do_async=True, order=order)
                     self.to_executor.put(command)
+
+                # Send command straight to executor
                 elif task.task_type == TaskTypes.BYPASS:
                     command = task.command
                     command.order=order

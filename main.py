@@ -110,8 +110,10 @@ if __name__ == "__main__":
 
     print("Getting observations")
     static_block_poses = executor_to_main.get()
+    print(static_block_poses)
 
     for i in range(len(static_block_poses)):
+        print(static_block_poses[i].shape)
         rot = static_block_poses[i][:3, :3]
         loc = static_block_poses[i][:3, 3]
         yaw = np.arctan2(rot[1, 0], rot[0, 0])

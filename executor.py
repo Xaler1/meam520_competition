@@ -66,14 +66,14 @@ class Executor:
 
         return block_poses
 
-    def wait_for_action(self, id):
+    def wait_for_action(self, id: str):
         while True:
             if not self.from_manipulator.empty():
                 completed = self.from_manipulator.get()
                 if completed == id:
                     return
 
-    def run_command(self, command, current_config):
+    def run_command(self, command: Command, current_config):
         id = command.id
         # Moving to config q
         print("Executor got command:", id, "| Async:", command.do_async)
@@ -125,8 +125,6 @@ class Executor:
             self.to_manipulator.put(action)
             if not command.do_async:
                 self.wait_for_action(id)
-            else:
-                sleep(0.2)
 
         # Getting a list of observed blocks
         elif command.command_type == CommandTypes.GET_OBSERVED_BLOCKS:
