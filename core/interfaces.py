@@ -60,6 +60,7 @@ from math import sin, cos, pi
 from copy import deepcopy
 from cv_bridge import CvBridge
 import cv2
+import matplotlib.pyplot as plt
 
 class ObjectDetector:       
 
@@ -261,6 +262,77 @@ class ObjectDetector:
 	
 	def get_mid_rgb(self):
 		return self.mid_rgb
+
+	def get_block_range(self):
+		rgb = self.mid_rgb
+		list = []
+		min_j = np.inf # min_j = 110
+		max_j = 0 # max_j = 529
+		min_i = np.inf # min_i = 85
+		max_i = 0  # max_i = 263
+		# rgb = rgb[~np.isnan(rgb)].reshape(-1, 3) #remove nan values, left with color of table and blocks
+		# print(rgb) # actually shouldn't remove nans
+		# the left right bounds are within 110 and 529 (cols)
+		for i in range(rgb.shape[0]):
+			for j in range(rgb.shape[1]):
+				if (rgb[i][j] == 255).all():
+					list.append((i, j))
+					if j < min_j:
+						min_j = j
+					if j > max_j:
+						max_j = j
+					if i > max_i:
+						max_i = i
+				if (rgb[i][j] != 178).all():
+					if i < min_i:
+						min_i = i
+		return (min_j, max_j), (min_i, max_i)
+
+	def get_block_list(self):
+		rgb = self.mid_rgb
+		depth = self.mid_depth
+		rgb_bound = rgb[85:263, 110:529] #178x370x3
+		depth_bound = depth[85:263, 110:529] # 178x370
+		# get pixels and corresponding index where is not 255 or 178
+		# rgb, index and depth of blocks
+		block_rgb = []
+		block_index = []
+		block_depth = []
+		for i in range(rgb_bound.shape[0]):
+			for j in range(rgb_bound.shape[1]):
+				if ((rgb_bound[i][j] <= 177).any() and (rgb_bound[i][j] >= 203).any() and (rgb_bound[i][j] != 255).any()):
+				# if ((rgb_bound[i][j] !=178).any() and (rgb_bound[i][j] != 255).any()):
+					block_index.append((i, j))
+					block_rgb.append(rgb_bound[i][j])
+					block_depth.append(depth_bound[i][j])
+
+		#make a dictionary of block_list
+		block_list = {}
+		for i in range(len(block_index)):
+			block_list[block_index[i]] = {'rgb': block_rgb[i], 'depth': block_depth[i]}
+
+		return block_list
+
+	def visualize_block_list(self, block_list):
+		fig, ax = plt.subplots(figsize=(10, 10))
+
+		for index, data in block_list.items():
+			i, j = index
+			rgb = data['rgb']
+			# depth = data['depth']
+
+			# Plot the pixel with its RGB color
+			ax.scatter(j, i, color=[x / 255.0 for x in rgb], s=100)
+
+		ax.set_xlabel('Column Index')
+		ax.set_ylabel('Row Index')
+		ax.set_title('Visualization of RGB Colors')
+
+		plt.gca().invert_yaxis()  # Invert y-axis to match image coordinates
+		plt.show()
+
+
+
 
 class ArmController(franka_interface.ArmInterface):
 	"""
