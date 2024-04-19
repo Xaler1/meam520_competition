@@ -20,6 +20,7 @@ from computer import Computer, Task, TaskTypes
 from executor import Executor, Command, CommandTypes
 from manipulator import Manipulator, Action, ActionType
 from time import sleep
+from strategies import stack_static
 
 class KnownPoses(Enum):
     STATIC_OBSERVATION = euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.15, 0.5]))
@@ -82,70 +83,14 @@ if __name__ == "__main__":
     input("\nWaiting for start... Press ENTER to begin!\n") # get set!
     print("Go!\n") # go!
 
-    # STUDENT CODE HERE
-
     command = Command("open", CommandTypes.OPEN_GRIPPER, do_async=True)
     task = Task("open", TaskTypes.BYPASS, command=command)
     main_to_computer.put(task)
 
-    task = Task("static", TaskTypes.MOVE_TO, KnownPoses.STATIC_OBSERVATION.value)
-    main_to_computer.put(task)
-    while True:
-        if not executor_to_main.empty():
-            done_id = executor_to_main.get()
-            if done_id == "static":
-                break
-
-
-
-    command = Command("observe", CommandTypes.GET_OBSERVED_BLOCKS)
-    task = Task("observe", TaskTypes.BYPASS, command=command)
-    main_to_computer.put(task)
-    while True:
-        if not executor_to_main.empty():
-            done_id = executor_to_main.get()
-            if done_id == "observe":
-                sleep(0.1)
-                break
-
-    print("Getting observations")
-    static_block_poses = executor_to_main.get()
-    print(static_block_poses)
-
-    for i in range(len(static_block_poses)):
-        print(static_block_poses[i].shape)
-        rot = static_block_poses[i][:3, :3]
-        loc = static_block_poses[i][:3, 3]
-        yaw = np.arctan2(rot[1, 0], rot[0, 0])
-        # find closest 90 degree rotation
-        while yaw < -np.pi / 2:
-            yaw += np.pi / 2
-        while yaw > np.pi / 2:
-            yaw -= np.pi / 2
-
-
-
-        print("----------------------Rotation Z", yaw)
-
-        loc[2] = 0.225
-        static_block_poses[i] = euler_to_se3(-np.pi, 0, yaw, loc)
-        task = Task(str(i) + "-grab", TaskTypes.GRAB_BLOCK, static_block_poses[i])
-        main_to_computer.put(task)
-        task = Task(str(i) + "-stack", TaskTypes.PLACE_BLOCK, STACK_0[i])
-        main_to_computer.put(task)
-
+    stack_static(main_to_computer, executor_to_main, STACK_0[:4])
 
     input("Press Enter to kill all")
     print("Terminating")
     computer_process.kill()
     executor_process.kill()
     manipulator_process.kill()
-
-
-    # Uncomment to get middle camera depth/rgb images
-    # mid_depth = detector.get_mid_depth()
-    # mid_rgb = detector.get_mid_rgb()
-
-    # Move around...
-
-    # END STUDENT CODE
