@@ -14,9 +14,31 @@ from core.utils import time_in_seconds
 from lib.calculateFK import FK
 from lib.IK_position_null import IK
 from lib.utils import euler_to_se3
-from follower import Follower
+from enum import Enum
+from multiprocessing import Process, Queue
+from computer import Computer, Task, TaskTypes
+from executor import Executor, Command, CommandTypes
+from manipulator import Manipulator, Action, ActionType
+from time import sleep
+from routines import stack_static
+
+class KnownPoses(Enum):
+    STATIC_OBSERVATION = euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.15, 0.5]))
+
+STACK_0 = [
+        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.225])),
+        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.275])),
+        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.325])),
+        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.375])),
+        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.425])),
+        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.475])),
+    ]
 
 
+
+
+class KnownConfigs(Enum):
+    START = np.array([-0.01779206, -0.76012354, 0.01978261, -2.34205014, 0.02984053, 1.54119353 + np.pi / 2, 0.75344866])
 
 if __name__ == "__main__":
     try:
@@ -25,17 +47,32 @@ if __name__ == "__main__":
         print('Team must be red or blue - make sure you are running final.launch!')
         exit()
 
-    rospy.init_node("team_script")
+    main_to_computer = Queue()
+    computer_to_executor = Queue()
+    executor_to_manipulator = Queue()
+    manipulator_to_executor = Queue()
+    executor_to_main = Queue()
+    observation_queue = Queue()
 
-    follower = Follower()
-    callback = lambda state: follower.reach_target(state)
-    arm = ArmController(on_state_callback=callback)
-    follower.set_arm(arm)
-    detector = ObjectDetector()
+    computer = Computer(main_to_computer, computer_to_executor)
+    executor = Executor(computer_to_executor, executor_to_main, executor_to_manipulator, manipulator_to_executor, observation_queue)
+    manipulator = Manipulator(executor_to_manipulator, observation_queue, manipulator_to_executor)
 
-    start_position = np.array([-0.01779206, -0.76012354,  0.01978261, -2.34205014, 0.02984053, 1.54119353+pi/2, 0.75344866])
-    arm.safe_move_to_position(start_position) # on your mark!
-    arm.close_gripper()
+    computer_process = Process(target=computer.run)
+    computer_process.start()
+    executor_process = Process(target=executor.run)
+    executor_process.start()
+    manipulator_process = Process(target=manipulator.run)
+    manipulator_process.start()
+
+    command = Command("start", CommandTypes.MOVE_TO, KnownConfigs.START.value)
+    task = Task("start", TaskTypes.BYPASS, command=command)
+    main_to_computer.put(task)
+    while executor_to_main.empty():
+        sleep(0.1)
+    print("Moved to start pose")
+    executor_to_main.get()
+
 
     print("\n****************")
     if team == 'blue':
@@ -46,66 +83,14 @@ if __name__ == "__main__":
     input("\nWaiting for start... Press ENTER to begin!\n") # get set!
     print("Go!\n") # go!
 
-    # STUDENT CODE HERE
+    command = Command("open", CommandTypes.OPEN_GRIPPER, do_async=True)
+    task = Task("open", TaskTypes.BYPASS, command=command)
+    main_to_computer.put(task)
 
-    # get the transform from camera to panda_end_effector
-    H_ee_camera = detector.get_H_ee_camera()
-    print("Camera pose:\n", H_ee_camera)
+    stack_static(main_to_computer, executor_to_main, STACK_0[:4])
 
-    q = np.array([0, 0, 0, -np.pi / 2, 0, np.pi / 2, np.pi / 4])
-    # open gripper in new process
-    t1 = threading.Thread(target=arm.open_gripper)
-    t1.start()
-
-    arm.safe_move_to_position(q)
-
-    # Detect some blocks...
-    detections = detector.get_detections()
-    for (name, pose) in detections:
-         print(name,'\n',pose)
-
-    t1.join()
-
-    fk = FK()
-    ik = IK()
-    transforms = fk.compute_Ai(q)
-    H0c = transforms[-1] @ H_ee_camera
-    block_locations = []
-    block_rotations = []
-    for (name, pose) in detections:
-        world_pose = H0c @ pose
-        block_locations.append(world_pose[:3, 3])
-        block_rotations.append(world_pose[:3, :3])
-        print(block_locations[-1])
-
-    arm.safe_move_to_position(arm.neutral_position())
-
-    target_id = int(input("Select block to pick up: "))
-    rot = block_rotations[target_id]
-    rotation_z = np.arctan2(rot[1, 0], rot[0, 0]) % (np.pi/2)
-
-    target_loc = block_locations[target_id] + np.array([0, 0, 0.1])
-    target = euler_to_se3(-np.pi, 0, rotation_z, target_loc)
-
-    # _, T0e = fk.forward(q)
-    # follower.set_target(T0e, target)
-    # while not follower.complete:
-    #     pass
-    q, _, _, _ = ik.inverse(target, q, alpha=.86)
-    arm.safe_move_to_position(q)
-
-    target_loc = block_locations[target_id]
-    target = euler_to_se3(-np.pi, 0, rotation_z, target_loc)
-    q, _, _, _ = ik.inverse(target, q, alpha=.86)
-    arm.safe_move_to_position(q)
-
-
-
-
-    # Uncomment to get middle camera depth/rgb images
-    # mid_depth = detector.get_mid_depth()
-    # mid_rgb = detector.get_mid_rgb()
-
-    # Move around...
-
-    # END STUDENT CODE
+    input("Press Enter to kill all")
+    print("Terminating")
+    computer_process.kill()
+    executor_process.kill()
+    manipulator_process.kill()
