@@ -15,19 +15,19 @@ Sends movement and gripper commands to the arm. Collects observations from the c
 ## Communication
 The overall communication flow right now is:
 ```
-     Main <── ┓
-      |       |
-      v       |
-   Computer   |
-      |       |
-      v       |
-┏─>Executor ─ ┙ 
-|     |        
-|     v                 
-└─Manipulator--> observations
-      |
-      v
-     ROS
+      Main◄──┐              
+       │     │                        
+       ▼     │              
+    Computer │              
+       │     │                         
+       ▼     │              
+┌──►Executor─┘              
+│      │                            
+│      ▼                    
+└─Manipulator──►observations
+       │                                
+       ▼                    
+      ROS                   
 ```
 
 All the communication is done using multiprocessing Queue-s. Everything is
