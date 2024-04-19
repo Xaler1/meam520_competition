@@ -131,11 +131,19 @@ class Executor:
             print("Executor got command to get observed blocks")
             if not self.observations.empty():
                 self.observations.get()
-            while self.observations.empty():
-                sleep(0.1)
-            observation = self.observations.get()
-            camera_transform = observation.camera_transform
-            detections = observation.camera_detections
+            while True:
+                if not self.observations.empty():
+                    observation = self.observations.get()
+                    camera_transform = observation.camera_transform
+                    detections = observation.camera_detections
+                    duplicates = 0
+                    for _, pose1 in detections:
+                        for _, pose2 in detections:
+                            diff = pose1[:3, 3] - pose2[:3, 3]
+                            if np.linalg.norm(diff) < 0.02:
+                                duplicates += 1
+                    if len(detections) - duplicates == 4:
+                        break
             poses = self.get_observed_blocks(current_config, camera_transform, detections)
             self.to_main.put(id)
             self.to_main.put(poses)
