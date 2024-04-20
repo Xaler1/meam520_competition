@@ -59,10 +59,10 @@ class Executor:
 
         transforms = self.fk.compute_Ai(current_q)
         H0c = transforms[-1] @ H_ee_camera
-        block_poses = []
+        block_poses = {}
         for (name, pose) in detections:
             world_pose = H0c @ pose
-            block_poses.append(world_pose)
+            block_poses[name] = world_pose
 
         return block_poses
 
@@ -97,7 +97,6 @@ class Executor:
                 action = Action(id, ActionType.MOVE_TO, target_q=command.target_q)
                 self.to_manipulator.put(action)
                 self.wait_for_action(id)
-                print("Executor finished inner move")
             current_config = command.target_q
 
         # Closing the gripper
@@ -131,11 +130,13 @@ class Executor:
             print("Executor got command to get observed blocks")
             if not self.observations.empty():
                 self.observations.get()
-            while self.observations.empty():
+            while True:
                 sleep(0.1)
-            observation = self.observations.get()
-            camera_transform = observation.camera_transform
-            detections = observation.camera_detections
+                if not self.observations.empty():
+                    observation = self.observations.get()
+                    camera_transform = observation.camera_transform
+                    detections = observation.camera_detections
+                    break
             poses = self.get_observed_blocks(current_config, camera_transform, detections)
             self.to_main.put(id)
             self.to_main.put(poses)

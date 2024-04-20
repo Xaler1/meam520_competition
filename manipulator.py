@@ -60,8 +60,12 @@ class Manipulator:
             if self.observations.empty():
                 print("Manipulator placing new observations")
                 detections = detector.get_detections()
-                mid_depth = detector.get_mid_depth()
-                mid_rgb = detector.get_mid_rgb()
+                try:
+                    mid_depth = detector.get_mid_depth()
+                    mid_rgb = detector.get_mid_rgb()
+                except Exception as ex:
+                    mid_depth = None
+                    mid_rgb = None
                 observation = Observation(
                     camera_transform,
                     detections,
