@@ -27,6 +27,7 @@ class CommandTypes(Enum):
     GET_OBSERVED_BLOCKS = 6
 
 
+
 @dataclass
 class Command:
     id: str

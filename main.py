@@ -21,6 +21,7 @@ from executor import Executor, Command, CommandTypes
 from manipulator import Manipulator, Action, ActionType
 from time import sleep
 from routines import stack_static
+from lib.utils import transform
 
 class KnownPoses(Enum):
     STATIC_OBSERVATION = euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.15, 0.5]))
@@ -34,7 +35,9 @@ STACK_0 = [
         euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.475])),
     ]
 
-
+STACK_1 = [
+        transform(np.array([.1, .7, .32]), np.array([0, -pi, pi/2])),
+]
 
 
 class KnownConfigs(Enum):
@@ -88,6 +91,8 @@ if __name__ == "__main__":
     main_to_computer.put(task)
 
     stack_static(main_to_computer, executor_to_main, STACK_0[:4])
+
+    
 
     input("Press Enter to kill all")
     print("Terminating")

@@ -39,6 +39,9 @@ import argparse
 import numpy as np
 import franka_interface
 import itertools
+
+from matplotlib import pyplot as plt
+
 from core.safety import Safety
 from core.utils import time_in_seconds
 from franka_core_msgs.msg import JointCommand
@@ -270,9 +273,7 @@ class ObjectDetector:
 		max_j = 0 # max_j = 529
 		min_i = np.inf # min_i = 85
 		max_i = 0  # max_i = 263
-		# rgb = rgb[~np.isnan(rgb)].reshape(-1, 3) #remove nan values, left with color of table and blocks
-		# print(rgb) # actually shouldn't remove nans
-		# the left right bounds are within 110 and 529 (cols)
+
 		for i in range(rgb.shape[0]):
 			for j in range(rgb.shape[1]):
 				if (rgb[i][j] == 255).all():
@@ -293,7 +294,8 @@ class ObjectDetector:
 		depth = self.mid_depth
 		rgb_bound = rgb[85:263, 110:529] #178x370x3
 		depth_bound = depth[85:263, 110:529] # 178x370
-		# get pixels and corresponding index where is not 255 or 178
+
+
 		# rgb, index and depth of blocks
 		block_rgb = []
 		block_index = []
@@ -330,8 +332,6 @@ class ObjectDetector:
 
 		plt.gca().invert_yaxis()  # Invert y-axis to match image coordinates
 		plt.show()
-
-
 
 
 class ArmController(franka_interface.ArmInterface):
