@@ -54,9 +54,7 @@ class Executor:
         self.observations = observations
 
     def get_observed_blocks(self, current_q, H_ee_camera, detections):
-        for (name, pose) in detections:
-            print(name, '\n', pose)
-
+        print("Observed", len(detections), "blocks")
         transforms = self.fk.compute_Ai(current_q)
         H0c = transforms[-1] @ H_ee_camera
         block_poses = {}
