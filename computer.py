@@ -56,14 +56,14 @@ class Computer:
                     print("Computer got command to grab block")
                     hover_pose = task.target_pose.copy()
                     hover_pose[2, 3] += 0.1
-                    q = self.move_command(id+"-0", order, hover_pose, do_async=True, extra_fast=True)
+                    q = self.move_command(id + "-0", order, hover_pose, do_async=True, extra_fast=True)
                     order += 1
-                    self.move_command(id+"-1", order, target, start=q, do_async=True)
+                    self.move_command(id + "-1", order, target, start=q, do_async=True)
                     order += 1
-                    command = Command(id+"-2", CommandTypes.GRAB_BLOCK, do_async=True, order=order)
+                    command = Command(id + "-2", CommandTypes.GRAB_BLOCK, do_async=True, order=order)
                     order += 1
                     self.to_executor.put(command)
-                    command = Command(id+"-3", CommandTypes.MOVE_TO, q, do_async=True, order=order)
+                    command = Command(id + "-3", CommandTypes.MOVE_TO, q, do_async=True, order=order)
                     self.to_executor.put(command)
 
                 # Move to a location and place a block
@@ -71,19 +71,19 @@ class Computer:
                     print("Computer got command to place block")
                     hover_pose = task.target_pose.copy()
                     hover_pose[2, 3] += 0.1
-                    q = self.move_command(id+"-0", order, hover_pose, do_async=True, extra_fast=True)
+                    q = self.move_command(id + "-0", order, hover_pose, do_async=True, extra_fast=True)
                     order += 1
-                    self.move_command(id+"-1", order, target, start=q, do_async=True)
+                    self.move_command(id + "-1", order, target, start=q, do_async=True)
                     order += 1
-                    command = Command(id+"-2", CommandTypes.OPEN_GRIPPER, do_async=True, order=order)
+                    command = Command(id + "-2", CommandTypes.OPEN_GRIPPER, do_async=True, order=order)
                     order += 1
                     self.to_executor.put(command)
-                    command = Command(id+"-3", CommandTypes.MOVE_TO, q, do_async=True, order=order)
+                    command = Command(id + "-3", CommandTypes.MOVE_TO, q, do_async=True, order=order)
                     self.to_executor.put(command)
 
                 # Send command straight to executor
                 elif task.task_type == TaskTypes.BYPASS:
                     command = task.command
-                    command.order=order
+                    command.order = order
                     order += 1
                     self.to_executor.put(command)

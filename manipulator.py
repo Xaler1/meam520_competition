@@ -17,11 +17,13 @@ import numpy as np
 from threading import Thread
 from time import sleep
 
+
 class ActionType(Enum):
     MOVE_TO = 1
     CLOSE_GRIPPER = 2
     OPEN_GRIPPER = 3
     SET_GRIPPER = 4
+
 
 @dataclass
 class Action:
@@ -31,13 +33,13 @@ class Action:
     target_width: float = None
     target_force: float = None
 
+
 @dataclass
 class Observation:
     camera_transform: np.ndarray
     camera_detections: np.ndarray
     mid_rgb: np.ndarray
     mid_depth: np.ndarray
-
 
 
 class Manipulator:
@@ -101,7 +103,6 @@ class Manipulator:
                 if t is not None:
                     t.start()
                     threads.append(t)
-
 
             # Check dead threads
             to_delete = []

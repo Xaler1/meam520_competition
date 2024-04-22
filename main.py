@@ -22,27 +22,29 @@ from manipulator import Manipulator, Action, ActionType
 from time import sleep
 from routines import stack_static
 
+
 class KnownPoses(Enum):
     STATIC_OBSERVATION = euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.15, 0.5]))
 
+
 STACK_0 = [
-        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.225])),
-        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.275])),
-        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.325])),
-        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.375])),
-        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.425])),
-        euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.475])),
-    ]
-
-
+    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.225])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.275])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.325])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.375])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.425])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.475])),
+]
 
 
 class KnownConfigs(Enum):
-    START = np.array([-0.01779206, -0.76012354, 0.01978261, -2.34205014, 0.02984053, 1.54119353 + np.pi / 2, 0.75344866])
+    START = np.array(
+        [-0.01779206, -0.76012354, 0.01978261, -2.34205014, 0.02984053, 1.54119353 + np.pi / 2, 0.75344866])
+
 
 if __name__ == "__main__":
     try:
-        team = rospy.get_param("team") # 'red' or 'blue'
+        team = rospy.get_param("team")  # 'red' or 'blue'
     except KeyError:
         print('Team must be red or blue - make sure you are running final.launch!')
         exit()
@@ -55,7 +57,8 @@ if __name__ == "__main__":
     observation_queue = Queue()
 
     computer = Computer(main_to_computer, computer_to_executor)
-    executor = Executor(computer_to_executor, executor_to_main, executor_to_manipulator, manipulator_to_executor, observation_queue)
+    executor = Executor(computer_to_executor, executor_to_main, executor_to_manipulator, manipulator_to_executor,
+                        observation_queue)
     manipulator = Manipulator(executor_to_manipulator, observation_queue, manipulator_to_executor)
 
     computer_process = Process(target=computer.run)
@@ -73,15 +76,14 @@ if __name__ == "__main__":
     print("Moved to start pose")
     executor_to_main.get()
 
-
     print("\n****************")
     if team == 'blue':
         print("** BLUE TEAM  **")
     else:
         print("**  RED TEAM  **")
     print("****************")
-    input("\nWaiting for start... Press ENTER to begin!\n") # get set!
-    print("Go!\n") # go!
+    input("\nWaiting for start... Press ENTER to begin!\n")  # get set!
+    print("Go!\n")  # go!
 
     command = Command("open", CommandTypes.OPEN_GRIPPER, do_async=True)
     task = Task("open", TaskTypes.BYPASS, command=command)
