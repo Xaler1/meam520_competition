@@ -11,8 +11,8 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
     observation_poses = [
         euler_to_se3(-np.pi, -np.pi / 8, 0, np.array([0.45, -0.18, 0.5])),
         euler_to_se3(-np.pi, np.pi / 8, 0, np.array([0.5, -0.18, 0.5])),
-        euler_to_se3(-np.pi - np.pi/8, 0, 0, np.array([0.5, -0.13, 0.5])),
-        euler_to_se3(-np.pi + np.pi/8, 0, 0, np.array([0.5, -0.22, 0.5])),
+        euler_to_se3(-np.pi - np.pi / 8, 0, 0, np.array([0.5, -0.13, 0.5])),
+        euler_to_se3(-np.pi + np.pi / 8, 0, 0, np.array([0.5, -0.22, 0.5])),
     ]
 
     blocks = {}
@@ -47,7 +47,6 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
                     distances[i] += np.linalg.norm(poses[i][:3, 3] - poses[j][:3, 3])
             static_block_poses.append(poses[np.argmin(distances)])
 
-
     for i in range(len(static_block_poses)):
         rot = static_block_poses[i][:3, :3]
         loc = static_block_poses[i][:3, 3]
@@ -80,7 +79,6 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
             yaw += np.pi / 2
 
         print("----------------Yaw", np.rad2deg(yaw), "-----------------")
-
 
         loc[2] = 0.225
         static_block_poses[i] = euler_to_se3(-np.pi, 0, yaw, loc)

@@ -161,5 +161,3 @@ class Executor:
                     continue
                 order += 1
                 current_config = self.run_command(command, current_config)
-
-
