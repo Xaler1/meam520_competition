@@ -29,6 +29,7 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
                     sleep(0.1)
                     break
         observed_blocks = from_executor.get()
+        print("Saw", len(observed_blocks), "blocks")
         for name in observed_blocks:
             block = observed_blocks[name]
             if name not in blocks:

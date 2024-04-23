@@ -19,6 +19,7 @@ from multiprocessing import Process, Queue
 from computer import Computer, Task, TaskTypes
 from executor import Executor, Command, CommandTypes
 from manipulator import Manipulator, Action, ActionType
+from observer import Observer
 from time import sleep
 from routines import stack_static
 
@@ -54,12 +55,19 @@ if __name__ == "__main__":
     executor_to_manipulator = Queue()
     manipulator_to_executor = Queue()
     executor_to_main = Queue()
-    observation_queue = Queue()
+    static_observations = Queue()
+    dynamic_observations = Queue()
+    dynamic_locations = Queue()
 
     computer = Computer(main_to_computer, computer_to_executor)
     executor = Executor(computer_to_executor, executor_to_main, executor_to_manipulator, manipulator_to_executor,
-                        observation_queue)
-    manipulator = Manipulator(executor_to_manipulator, observation_queue, manipulator_to_executor)
+                        static_observations)
+    manipulator = Manipulator(executor_to_manipulator,
+                              static_observations,
+                              dynamic_observations,
+                              manipulator_to_executor)
+    observer = Observer(dynamic_locations, dynamic_observations)
+
 
     computer_process = Process(target=computer.run)
     computer_process.start()
@@ -67,6 +75,8 @@ if __name__ == "__main__":
     executor_process.start()
     manipulator_process = Process(target=manipulator.run)
     manipulator_process.start()
+    observer_process = Process(target=observer.run)
+    observer_process.start()
 
     command = Command("start", CommandTypes.MOVE_TO, KnownConfigs.START.value)
     task = Task("start", TaskTypes.BYPASS, command=command)
@@ -89,10 +99,11 @@ if __name__ == "__main__":
     task = Task("open", TaskTypes.BYPASS, command=command)
     main_to_computer.put(task)
 
-    stack_static(main_to_computer, executor_to_main, STACK_0[:4])
+    #stack_static(main_to_computer, executor_to_main, STACK_0[:4])
 
     input("Press Enter to kill all")
     print("Terminating")
     computer_process.kill()
     executor_process.kill()
     manipulator_process.kill()
+    observer_process.kill()

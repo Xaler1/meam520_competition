@@ -35,17 +35,28 @@ class Action:
 
 
 @dataclass
-class Observation:
+class StaticObservation:
     camera_transform: np.ndarray
     camera_detections: np.ndarray
+
+
+@dataclass
+class DynamicObservation:
+    camera_transform: np.ndarray
     mid_rgb: np.ndarray
     mid_depth: np.ndarray
 
 
 class Manipulator:
-    def __init__(self, from_executor: Queue, observations: Queue, completions: Queue):
+    def __init__(self,
+                 from_executor: Queue,
+                 static_observations: Queue,
+                 dynamic_observations: Queue,
+                 completions: Queue
+                 ):
         self.from_executor = from_executor
-        self.observations = observations
+        self.static_observations = static_observations
+        self.dynamic_observations = dynamic_observations
         self.completions = completions
         self.camera_transform = None
 
@@ -59,22 +70,28 @@ class Manipulator:
         while True:
             sleep(0.1)
             # Create and post observation
-            if self.observations.empty():
-                print("Manipulator placing new observations")
+            if self.static_observations.empty():
+                print("Manipulator placing new static observations")
                 detections = detector.get_detections()
-                try:
-                    mid_depth = detector.get_mid_depth()
-                    mid_rgb = detector.get_mid_rgb()
-                except Exception as ex:
-                    mid_depth = None
-                    mid_rgb = None
-                observation = Observation(
+                observation = StaticObservation(
                     camera_transform,
                     detections,
+                )
+                self.static_observations.put(observation)
+            if self.dynamic_observations.empty():
+                print("Manipulator placing new dynamic observations")
+                try:
+                    mid_rgb = detector.get_mid_rgb()
+                    mid_depth = detector.get_mid_depth()
+                except Exception as ex:
+                    mid_rgb = None
+                    mid_depth = None
+                observation = DynamicObservation(
+                    camera_transform,
                     mid_rgb,
                     mid_depth
                 )
-                self.observations.put(observation)
+                self.dynamic_observations.put(observation)
 
             # Perform action
             if not self.from_executor.empty():
