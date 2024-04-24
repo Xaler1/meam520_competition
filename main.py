@@ -20,7 +20,7 @@ from computer import Computer, Task, TaskTypes
 from executor import Executor, Command, CommandTypes
 from manipulator import Manipulator, Action, ActionType
 from time import sleep
-from routines import stack_static
+from routines import stack_static, stack_dynamic, shuffle_blocks
 
 
 class KnownPoses(Enum):
@@ -28,12 +28,25 @@ class KnownPoses(Enum):
 
 
 STACK_0 = [
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.225])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.275])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.325])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.375])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.425])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.475])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.225])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.275])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.325])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.375])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.425])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.475])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.525])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.575])),
+]
+
+STACK_1 = [
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.225])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.275])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.325])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.375])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.425])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.475])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.525])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.575])),
 ]
 
 
@@ -89,7 +102,11 @@ if __name__ == "__main__":
     task = Task("open", TaskTypes.BYPASS, command=command)
     main_to_computer.put(task)
 
+    #stack_static(main_to_computer, executor_to_main, STACK_0[:4])
+    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:4])
     stack_static(main_to_computer, executor_to_main, STACK_0[:4])
+    shuffle_blocks(main_to_computer, STACK_1[:dynamic_grabbed], STACK_0[4:4+dynamic_grabbed])
+
 
     input("Press Enter to kill all")
     print("Terminating")

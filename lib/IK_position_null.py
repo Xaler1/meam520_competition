@@ -170,6 +170,7 @@ class IK:
         axis = np.reshape(axis, (3,1))
         displacement_axis = np.vstack((displacement, axis))
         J = calcJacobian(q)
+        # using pseudo-inverse
         dq = np.linalg.pinv(J) @ displacement_axis
 
         ## END STUDENT CODE
@@ -255,6 +256,7 @@ class IK:
 
             # update q
             q = q + alpha * np.reshape(dq, (7,))
+            q = np.clip(q, IK.lower, IK.upper)
             rollout.append(q)
             
 
@@ -262,3 +264,6 @@ class IK:
 
         success, message = self.is_valid_solution(q,target)
         return q, rollout, success, message
+
+    def inverse_optim(self, target):
+        pass
