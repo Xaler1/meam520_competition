@@ -20,20 +20,28 @@ from computer import Computer, Task, TaskTypes
 from executor import Executor, Command, CommandTypes
 from manipulator import Manipulator, Action, ActionType
 from time import sleep
-from routines import stack_static
+from routines import stack_static, stack_dynamic, shuffle_blocks
+import json
+import argparse
 
+args = argparse.ArgumentParser()
+args.add_argument("config", type=str, help="Path to config file", default="red-sim.json")
+args = args.parse_args()
+with open(args.config, "r") as f:
+    config = json.load(f)
 
 class KnownPoses(Enum):
     STATIC_OBSERVATION = euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.15, 0.5]))
 
 
+st0 = config["stack_0"]
 STACK_0 = [
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.225])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.275])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.325])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.375])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.425])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.475])),
+    euler_to_se3(-np.pi, 0, 0, np.array([st0["x"], st0["y"], st0["z"] + i * 0.05])) for i in range(8)
+]
+
+st1 = config["stack_1"]
+STACK_1 = [
+    euler_to_se3(-np.pi, 0, 0, np.array([st1["x"], st1["y"], st1["z"] + i * 0.05])) for i in range(8)
 ]
 
 
@@ -89,7 +97,12 @@ if __name__ == "__main__":
     task = Task("open", TaskTypes.BYPASS, command=command)
     main_to_computer.put(task)
 
-    stack_static(main_to_computer, executor_to_main, STACK_0[:4])
+    #stack_static(main_to_computer, executor_to_main, STACK_0[:4])
+    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:3], config)
+    stack_static(main_to_computer, executor_to_main, STACK_0[:4], config)
+    shuffle_blocks(main_to_computer, STACK_1[:dynamic_grabbed], STACK_0[4:4+dynamic_grabbed])
+    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:5], config)
+
 
     input("Press Enter to kill all")
     print("Terminating")
