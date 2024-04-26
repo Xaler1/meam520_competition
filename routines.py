@@ -112,6 +112,7 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: lis
     rot_axis = np.array([0, 0, 1])
     w = np.pi * 2 * 0.52 / 60
 
+    last_pose = None
     for i in range(3):
         task = Task("dynamic", TaskTypes.MOVE_TO, observation_pose)
         to_computer.put(task)
@@ -128,8 +129,17 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: lis
                 pose[1, 3] += 0.03
                 print("found block with x", pose[0, 3])
                 if abs(pose[0, 3]) < 0.05:
-                    found = True
-                    break
+                    if last_pose is None:
+                        pose = last_pose
+                    else:
+                        loc = pose[:2, 3]
+                        last_loc = last_pose[:2, 3]
+                        target = np.array([0.02, 0.01])
+                        diff = loc - last_loc
+                        if np.all(diff < target):
+                            found = True
+                            break
+                        last_pose = pose
             observed_blocks = []
 
         delay = 2

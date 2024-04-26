@@ -28,25 +28,11 @@ class KnownPoses(Enum):
 
 
 STACK_0 = [
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.23])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.28])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.33])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.38])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.43])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.48])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.53])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.58])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.23 + i * 0.05])) for i in range(8)
 ]
 
 STACK_1 = [
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.235])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.285])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.335])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.385])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.435])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.485])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.535])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.585])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.235 + i * 0.05])) for i in range(8)
 ]
 
 
