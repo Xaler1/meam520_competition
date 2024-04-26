@@ -60,7 +60,7 @@ def get_goal_pose(pose, dynamic_mode=False):
     return pose
 
 
-def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list):
+def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list, config: dict):
     static_observation = euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.15, 0.5]))
     observation_poses = [
         euler_to_se3(-np.pi, 0, 0, np.array([0.45, -0.18, 0.5])),
@@ -68,6 +68,8 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
         euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.13, 0.5])),
         euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.22, 0.5])),
     ]
+
+    offsets = config["offset_static"]
 
     blocks = {}
     for pose in observation_poses:
@@ -97,19 +99,20 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
 
     for i in range(len(static_block_poses)):
         pose = get_goal_pose(static_block_poses[i])
-        pose[0, 3] += 0.025
-        pose[1, 3] += 0.035
-        pose[2, 3] += 0.015
+        pose[0, 3] += offsets["x"]
+        pose[1, 3] += offsets["y"]
+        pose[2, 3] += offsets["z"]
         task = Task(str(i) + "-grab", TaskTypes.GRAB_BLOCK, pose)
         to_computer.put(task)
         task = Task(str(i) + "-stack", TaskTypes.PLACE_BLOCK, stack_positions[i])
         to_computer.put(task)
 
 
-def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: list):
+def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: list, config: dict):
+
+    offsets = config["offset_dynamic"]
 
     observation_pose = euler_to_se3(-np.pi, 0, np.pi/2, np.array([0.0, 0.7, 0.4]))
-    rot_axis = np.array([0, 0, 1])
     w = np.pi * 2 * 0.52 / 60
 
     last_pose = None
@@ -125,18 +128,20 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: lis
             for name in observed_blocks:
                 block = observed_blocks[name]
                 pose = get_goal_pose(block, dynamic_mode=True)
-                pose[0, 3] -= 0.015
-                pose[1, 3] += 0.03
+                pose[0, 3] -= offsets["x"]
+                pose[1, 3] += offsets["y"]
+                pose[2, 3] += offsets["z"]
                 print("found block with x", pose[0, 3])
                 if abs(pose[0, 3]) < 0.05:
                     if last_pose is None:
-                        pose = last_pose
+                        last_pose = pose
                     else:
                         loc = pose[:2, 3]
                         last_loc = last_pose[:2, 3]
-                        target = np.array([0.02, 0.01])
+                        target = np.array([0.01, -0.01])
                         diff = loc - last_loc
-                        if np.all(diff < target):
+                        print(diff)
+                        if 0 < diff[0] < 0.01 and -0.01 < diff[1] < 0.01:
                             found = True
                             break
                         last_pose = pose
