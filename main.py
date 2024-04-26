@@ -28,25 +28,25 @@ class KnownPoses(Enum):
 
 
 STACK_0 = [
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.225])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.275])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.325])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.375])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.425])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.475])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.525])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.575])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.23])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.28])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.33])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.38])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.43])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.48])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.53])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.5, 0.1, 0.58])),
 ]
 
 STACK_1 = [
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.225])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.275])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.325])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.375])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.425])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.475])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.525])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.575])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.235])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.285])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.335])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.385])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.435])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.485])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.535])),
+    euler_to_se3(-np.pi, 0, 0, np.array([0.65, 0.25, 0.585])),
 ]
 
 
@@ -104,8 +104,8 @@ if __name__ == "__main__":
 
     #stack_static(main_to_computer, executor_to_main, STACK_0[:4])
     dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:4])
-    stack_static(main_to_computer, executor_to_main, STACK_0[:4])
-    shuffle_blocks(main_to_computer, STACK_1[:dynamic_grabbed], STACK_0[4:4+dynamic_grabbed])
+    #stack_static(main_to_computer, executor_to_main, STACK_0[:4])
+    #shuffle_blocks(main_to_computer, STACK_1[:dynamic_grabbed], STACK_0[4:4+dynamic_grabbed])
 
 
     input("Press Enter to kill all")

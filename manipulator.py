@@ -54,7 +54,7 @@ class Manipulator:
         arm = ArmController()
         detector = ObjectDetector()
         camera_transform = detector.get_H_ee_camera()
-        arm.set_arm_speed(0.5)
+        arm.set_arm_speed(0.45)
         threads = []
         while True:
             sleep(0.1)

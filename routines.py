@@ -63,10 +63,10 @@ def get_goal_pose(pose, dynamic_mode=False):
 def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list):
     static_observation = euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.15, 0.5]))
     observation_poses = [
-        euler_to_se3(-np.pi, -np.pi / 8, 0, np.array([0.45, -0.18, 0.5])),
-        euler_to_se3(-np.pi, np.pi / 8, 0, np.array([0.5, -0.18, 0.5])),
-        euler_to_se3(-np.pi - np.pi / 8, 0, 0, np.array([0.5, -0.13, 0.5])),
-        euler_to_se3(-np.pi + np.pi / 8, 0, 0, np.array([0.5, -0.22, 0.5])),
+        euler_to_se3(-np.pi, 0, 0, np.array([0.45, -0.18, 0.5])),
+        euler_to_se3(-np.pi, 0, 0, np.array([0.55, -0.18, 0.5])),
+        euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.13, 0.5])),
+        euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.22, 0.5])),
     ]
 
     blocks = {}
@@ -74,6 +74,7 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
         task = Task("static", TaskTypes.MOVE_TO, pose)
         to_computer.put(task)
         observed_blocks = get_blocks(to_computer, from_executor)
+        print("observed block:", len(observed_blocks))
         for name in observed_blocks:
             block = observed_blocks[name]
             if name not in blocks:
@@ -83,7 +84,7 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
     static_block_poses = []
     for name in blocks:
         poses = blocks[name]
-        if len(poses) == 1:
+        if len(poses) <= 1:
             continue
         if len(poses) <= 2:
             static_block_poses.append(poses[0])
@@ -96,6 +97,9 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
 
     for i in range(len(static_block_poses)):
         pose = get_goal_pose(static_block_poses[i])
+        pose[0, 3] += 0.025
+        pose[1, 3] += 0.035
+        pose[2, 3] += 0.015
         task = Task(str(i) + "-grab", TaskTypes.GRAB_BLOCK, pose)
         to_computer.put(task)
         task = Task(str(i) + "-stack", TaskTypes.PLACE_BLOCK, stack_positions[i])
@@ -120,8 +124,10 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: lis
             for name in observed_blocks:
                 block = observed_blocks[name]
                 pose = get_goal_pose(block, dynamic_mode=True)
+                pose[0, 3] -= 0.015
+                pose[1, 3] += 0.03
                 print("found block with x", pose[0, 3])
-                if abs(pose[0, 3]) < 0.1:
+                if abs(pose[0, 3]) < 0.05:
                     found = True
                     break
             observed_blocks = []
