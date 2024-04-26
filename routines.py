@@ -110,13 +110,13 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
 
 def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: list, config: dict):
 
-    offsets = config["offset_dynamic"]
+    pos_offsets = config["offset_dynamic"]
 
     observation_pose = euler_to_se3(-np.pi, 0, np.pi/2, np.array([0.0, 0.7, 0.4]))
     w = np.pi * 2 * 0.52 / 60
 
     last_pose = None
-    for i in range(3):
+    for i in range(len(stack_positions)):
         task = Task("dynamic", TaskTypes.MOVE_TO, observation_pose)
         to_computer.put(task)
         observed_blocks = []
@@ -128,9 +128,9 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: lis
             for name in observed_blocks:
                 block = observed_blocks[name]
                 pose = get_goal_pose(block, dynamic_mode=True)
-                pose[0, 3] -= offsets["x"]
-                pose[1, 3] += offsets["y"]
-                pose[2, 3] += offsets["z"]
+                pose[0, 3] += pos_offsets["x"]
+                pose[1, 3] += pos_offsets["y"]
+                pose[2, 3] += pos_offsets["z"]
                 print("found block with x", pose[0, 3])
                 if abs(pose[0, 3]) < 0.05:
                     if last_pose is None:

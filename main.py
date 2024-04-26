@@ -98,9 +98,10 @@ if __name__ == "__main__":
     main_to_computer.put(task)
 
     #stack_static(main_to_computer, executor_to_main, STACK_0[:4])
-    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:4], config)
+    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:3], config)
     stack_static(main_to_computer, executor_to_main, STACK_0[:4], config)
     shuffle_blocks(main_to_computer, STACK_1[:dynamic_grabbed], STACK_0[4:4+dynamic_grabbed])
+    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:5], config)
 
 
     input("Press Enter to kill all")
