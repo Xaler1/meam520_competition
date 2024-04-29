@@ -63,8 +63,9 @@ if __name__ == "__main__":
     manipulator_to_executor = Queue()
     executor_to_main = Queue()
     observation_queue = Queue()
+    computer_to_main = Queue()
 
-    computer = Computer(main_to_computer, computer_to_executor)
+    computer = Computer(main_to_computer, computer_to_executor, computer_to_main)
     executor = Executor(computer_to_executor, executor_to_main, executor_to_manipulator, manipulator_to_executor,
                         observation_queue)
     manipulator = Manipulator(executor_to_manipulator, observation_queue, manipulator_to_executor)
@@ -101,7 +102,7 @@ if __name__ == "__main__":
     dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:3], config)
     stack_static(main_to_computer, executor_to_main, STACK_0[:4], config)
     shuffle_blocks(main_to_computer, STACK_1[:dynamic_grabbed], STACK_0[4:4+dynamic_grabbed])
-    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:5], config)
+    #dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:5], config)
 
 
     input("Press Enter to kill all")

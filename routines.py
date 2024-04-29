@@ -19,7 +19,7 @@ def get_blocks(to_computer: Queue, from_executor: Queue):
     observed_blocks = from_executor.get()
     return observed_blocks
 
-def get_goal_pose(pose, dynamic_mode=False):
+def get_goal_pose(pose, dynamic_mode=False, blue=False):
     rot = pose[:3, :3]
     loc = pose[:3, 3]
     forward = np.array([1, 0, 0])
@@ -51,8 +51,12 @@ def get_goal_pose(pose, dynamic_mode=False):
         yaw += np.pi / 2
 
     if dynamic_mode:
-        while yaw < np.pi / 4:
-            yaw += np.pi / 2
+        if blue:
+            while yaw > - np.pi/4:
+                yaw -= np.pi/2
+        else:
+            while yaw < np.pi / 4:
+                yaw += np.pi / 2
 
 
     loc[2] = 0.225
@@ -61,15 +65,10 @@ def get_goal_pose(pose, dynamic_mode=False):
 
 
 def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list, config: dict):
-    static_observation = euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.15, 0.5]))
-    observation_poses = [
-        euler_to_se3(-np.pi, 0, 0, np.array([0.45, -0.18, 0.5])),
-        euler_to_se3(-np.pi, 0, 0, np.array([0.55, -0.18, 0.5])),
-        euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.13, 0.5])),
-        euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.22, 0.5])),
-    ]
+    obs = config["static_observations"]
+    observation_poses = [euler_to_se3(pose["roll"], pose["pitch"], pose["yaw"], np.array([pose["x"], pose["y"], pose["z"]])) for pose in obs]
 
-    offsets = config["offset_static"]
+    pos_offsets = config["offset_static"]
 
     blocks = {}
     for pose in observation_poses:
@@ -97,22 +96,41 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
                     distances[i] += np.linalg.norm(poses[i][:3, 3] - poses[j][:3, 3])
             static_block_poses.append(poses[np.argmin(distances)])
 
+    filtered_block_poses = []
+    print("\n\n")
+    for pose in static_block_poses:
+        print(pose)
+        if get_goal_pose(pose) is None:
+            continue
+        valid = True
+        for other in filtered_block_poses:
+            dist = np.linalg.norm(pose[:3, 3] - other[:3, 3])
+            if dist < 0.05:
+                valid = False
+                break
+        if valid:
+            filtered_block_poses.append(pose)
+
+    print("\n Final Blocks observed:", len(filtered_block_poses))
+    static_block_poses = filtered_block_poses
+
     for i in range(len(static_block_poses)):
         pose = get_goal_pose(static_block_poses[i])
-        pose[0, 3] += offsets["x"]
-        pose[1, 3] += offsets["y"]
-        pose[2, 3] += offsets["z"]
-        task = Task(str(i) + "-grab", TaskTypes.GRAB_BLOCK, pose)
+        pose[0, 3] += pos_offsets["x"]
+        pose[1, 3] += pos_offsets["y"]
+        pose[2, 3] += pos_offsets["z"]
+        task = Task(str(i) + "-grab", TaskTypes.GRAB_BLOCK, pose, hover_gap=0.2)
         to_computer.put(task)
-        task = Task(str(i) + "-stack", TaskTypes.PLACE_BLOCK, stack_positions[i])
+        task = Task(str(i) + "-stack", TaskTypes.PLACE_BLOCK, stack_positions[i], hover_gap=0.15)
         to_computer.put(task)
 
 
 def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: list, config: dict):
 
     pos_offsets = config["offset_dynamic"]
+    obs = config["dynamic_observation"]
 
-    observation_pose = euler_to_se3(-np.pi, 0, np.pi/2, np.array([0.0, 0.7, 0.4]))
+    observation_pose = euler_to_se3(obs["roll"], obs["pitch"], obs["yaw"], np.array([obs["x"], obs["y"], obs["z"]]))
     w = np.pi * 2 * 0.52 / 60
 
     last_pose = None
@@ -127,7 +145,7 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: lis
                 observed_blocks = get_blocks(to_computer, from_executor)
             for name in observed_blocks:
                 block = observed_blocks[name]
-                pose = get_goal_pose(block, dynamic_mode=True)
+                pose = get_goal_pose(block, dynamic_mode=True, blue=config["blue"])
                 pose[0, 3] += pos_offsets["x"]
                 pose[1, 3] += pos_offsets["y"]
                 pose[2, 3] += pos_offsets["z"]
@@ -141,7 +159,7 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: lis
                         target = np.array([0.01, -0.01])
                         diff = loc - last_loc
                         print(diff)
-                        if 0 < diff[0] < 0.01 and -0.01 < diff[1] < 0.01:
+                        if -0.01 < diff[0] < 0.01 and -0.01 < diff[1] < 0.01:
                             found = True
                             break
                         last_pose = pose
@@ -152,8 +170,10 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: lis
 
         loc = pose[:3, 3]
         rot = pose[:3, :3]
-        offset = np.array([0, 0.99, 0])
+        offset = np.array([0, config["world_center"], 0])
         loc = loc - offset
+        print("\nworld location")
+        print(loc)
 
         # rotate by theta around z axis
         transform = np.array([
@@ -167,6 +187,8 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: lis
         pose[:3, 3] = loc
         pose[:3, :3] = rot
         np.set_printoptions(precision=3, suppress=True)
+        print("\n target pose")
+        print(pose)
 
         task = Task("dynamic", TaskTypes.GRAB_BLOCK, pose, hover_gap=0.05)
         to_computer.put(task)
