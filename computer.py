@@ -27,16 +27,17 @@ class Task:
 
 
 class Computer:
-    def __init__(self, from_main: Queue, to_executor: Queue):
+    def __init__(self, from_main: Queue, to_executor: Queue, to_main: Queue):
         self.from_main = from_main
         self.to_executor = to_executor
+        self.to_main = to_main
         self.ik = IK()
         self.default_pose = np.array([0, 0, 0, -np.pi / 2, 0, np.pi / 2, np.pi / 4])
 
     def move_command(self, id: str, order: int, target, start=None, do_async=False, extra_fast=False):
         if start is None:
             start = self.default_pose
-        q, _, _, _ = self.ik.inverse(target, start, alpha=0.86)
+        q, _, success, _ = self.ik.inverse(target, start, alpha=0.86)
         command = Command(id, CommandTypes.MOVE_TO, q, do_async=do_async, extra_fast=extra_fast, order=order)
         self.to_executor.put(command)
         return q
