@@ -3,6 +3,7 @@ import numpy as np
 from copy import deepcopy
 from math import pi
 import threading
+import signal
 
 import rospy
 # Common interfaces for interacting with both the simulation and real environments!
@@ -23,6 +24,7 @@ from time import sleep
 from routines import stack_static, stack_dynamic, shuffle_blocks
 import json
 import argparse
+import os
 
 args = argparse.ArgumentParser()
 args.add_argument("config", type=str, help="Path to config file", default="red-sim.json")
@@ -44,10 +46,19 @@ STACK_1 = [
     euler_to_se3(-np.pi, 0, 0, np.array([st1["x"], st1["y"], st1["z"] + i * 0.05])) for i in range(8)
 ]
 
-
 class KnownConfigs(Enum):
     START = np.array(
         [-0.01779206, -0.76012354, 0.01978261, -2.34205014, 0.02984053, 1.54119353 + np.pi / 2, 0.75344866])
+
+
+def cleaner(master_pid, children: list):
+    while True:
+        if not os.path.exists(f"/proc/{master_pid}"):
+            print("Cleaning up children")
+            for child in children:
+                os.kill(child.pid, signal.SIGKILL)
+            break
+        sleep(1)
 
 
 if __name__ == "__main__":
@@ -77,6 +88,12 @@ if __name__ == "__main__":
     manipulator_process = Process(target=manipulator.run)
     manipulator_process.start()
 
+    children = [computer_process, executor_process, manipulator_process]
+    master_pid = os.getpid()
+    print("Master pid:", master_pid)
+    children = [child.pid for child in children]
+    os.system(f"python3 cleaner.py {master_pid} {' '.join(map(str, children))} &")
+
     command = Command("start", CommandTypes.MOVE_TO, KnownConfigs.START.value)
     task = Task("start", TaskTypes.BYPASS, command=command)
     main_to_computer.put(task)
@@ -99,14 +116,7 @@ if __name__ == "__main__":
     main_to_computer.put(task)
 
     #stack_static(main_to_computer, executor_to_main, STACK_0[:4])
-    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:3], config)
-    stack_static(main_to_computer, executor_to_main, STACK_0[:4], config)
-    shuffle_blocks(main_to_computer, STACK_1[:dynamic_grabbed], STACK_0[4:4+dynamic_grabbed])
+    #dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:3], config)
+    #stack_static(main_to_computer, executor_to_main, STACK_0[:4], config)
+    #shuffle_blocks(main_to_computer, STACK_1[:dynamic_grabbed], STACK_0[4:4+dynamic_grabbed])
     #dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:5], config)
-
-
-    input("Press Enter to kill all")
-    print("Terminating")
-    computer_process.kill()
-    executor_process.kill()
-    manipulator_process.kill()
