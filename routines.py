@@ -128,6 +128,8 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
         task = Task(str(i) + "-stack", TaskTypes.PLACE_BLOCK, stack_positions[i], hover_gap=0.15)
         to_computer.put(task)
 
+    return len(static_block_poses)
+
 
 def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: list, config: dict):
 
