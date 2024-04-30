@@ -54,11 +54,12 @@ class Computer:
                 task = self.from_main.get()
                 target = task.target_pose
                 id = task.id
+                print("Computer got command", task.task_type, "for", id)
 
                 # Move to a location
                 if task.task_type == TaskTypes.MOVE_TO:
-                    print("Computer got command to move")
                     if id in cache_q:
+                        print("Using cached position for", id)
                         last_q = self.move_command(id, order, target, start=last_q, do_async=False, known_q=cache_q[id])
                     else:
                         last_q = self.move_command(id, order, target, start=last_q, do_async=False)
@@ -67,7 +68,6 @@ class Computer:
 
                 # Move to and grab a block
                 elif task.task_type == TaskTypes.GRAB_BLOCK:
-                    print("Computer got command to grab block")
                     hover_pose = task.target_pose.copy()
                     hover_pose[2, 3] += task.hover_gap
                     q = self.move_command(id + "-0", order, hover_pose, start=last_q, do_async=True, extra_fast=True)
@@ -83,7 +83,6 @@ class Computer:
 
                 # Move to a location and place a block
                 elif task.task_type == TaskTypes.PLACE_BLOCK:
-                    print("Computer got command to place block")
                     hover_pose = task.target_pose.copy()
                     hover_pose[2, 3] += task.hover_gap
                     q = self.move_command(id + "-0", order, hover_pose, do_async=True, extra_fast=True)
@@ -98,7 +97,6 @@ class Computer:
                     last_q = q
 
                 elif task.task_type == TaskTypes.MOVE_BLOCK:
-                    print("Computer got command to move block")
                     target1 = task.target_pose
                     target2 = task.target_pose2
                     max_height = max(target1[2, 3], target2[2, 3])

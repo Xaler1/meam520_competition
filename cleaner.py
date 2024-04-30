@@ -17,7 +17,7 @@ def cleanup_process(main_pid, children: list):
             os.kill(child, signal.SIGKILL)
         except ProcessLookupError:
             pass
-    print("Cleaned up children")
+    print("Killed children")
 
 if __name__ == "__main__":
     main_pid = int(sys.argv[1])

@@ -21,7 +21,7 @@ from computer import Computer, Task, TaskTypes
 from executor import Executor, Command, CommandTypes
 from manipulator import Manipulator, Action, ActionType
 from time import sleep
-from routines import stack_static, stack_dynamic, shuffle_blocks
+from routines import stack_static, stack_dynamic, shuffle_blocks, calibration
 import json
 import argparse
 import os
@@ -108,7 +108,8 @@ if __name__ == "__main__":
     task = Task("open", TaskTypes.BYPASS, command=command)
     main_to_computer.put(task)
 
-    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:3], config)
-    stack_static(main_to_computer, executor_to_main, STACK_0[:4], config)
-    shuffle_blocks(main_to_computer, STACK_1[:dynamic_grabbed], STACK_0[4:4+dynamic_grabbed])
-    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_0[7:], config)
+    # dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:3], config)
+    # stack_static(main_to_computer, executor_to_main, STACK_0[:4], config)
+    # shuffle_blocks(main_to_computer, STACK_1[:dynamic_grabbed], STACK_0[4:4+dynamic_grabbed])
+    # dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_0[7:], config)
+    calibration(main_to_computer, executor_to_main, config)
