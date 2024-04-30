@@ -38,8 +38,11 @@ class KnownPoses(Enum):
 
 st0 = config["stack_0"]
 STACK_0 = [
-    euler_to_se3(-np.pi, 0, 0, np.array([st0["x"], st0["y"], st0["z"] + i * 0.05])) for i in range(8)
+    euler_to_se3(-np.pi, 0, 0, np.array([st0["x"], st0["y"], st0["z"] + i * 0.05])) for i in range(7)
 ]
+
+for i in range(5):
+    STACK_0.append(euler_to_se3(-np.pi, -np.pi/2, 0, np.array([st0["x"], st0["y"], st0["z"] + 0.35 + i * 0.05])))
 
 st1 = config["stack_1"]
 STACK_1 = [
@@ -49,16 +52,6 @@ STACK_1 = [
 class KnownConfigs(Enum):
     START = np.array(
         [-0.01779206, -0.76012354, 0.01978261, -2.34205014, 0.02984053, 1.54119353 + np.pi / 2, 0.75344866])
-
-
-def cleaner(master_pid, children: list):
-    while True:
-        if not os.path.exists(f"/proc/{master_pid}"):
-            print("Cleaning up children")
-            for child in children:
-                os.kill(child.pid, signal.SIGKILL)
-            break
-        sleep(1)
 
 
 if __name__ == "__main__":
@@ -115,8 +108,7 @@ if __name__ == "__main__":
     task = Task("open", TaskTypes.BYPASS, command=command)
     main_to_computer.put(task)
 
-    #stack_static(main_to_computer, executor_to_main, STACK_0[:4])
-    #dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:3], config)
-    #stack_static(main_to_computer, executor_to_main, STACK_0[:4], config)
-    #shuffle_blocks(main_to_computer, STACK_1[:dynamic_grabbed], STACK_0[4:4+dynamic_grabbed])
-    #dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:5], config)
+    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:3], config)
+    stack_static(main_to_computer, executor_to_main, STACK_0[:4], config)
+    shuffle_blocks(main_to_computer, STACK_1[:dynamic_grabbed], STACK_0[4:4+dynamic_grabbed])
+    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_0[7:], config)

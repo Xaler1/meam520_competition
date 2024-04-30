@@ -34,10 +34,13 @@ class Computer:
         self.ik = IK()
         self.default_pose = np.array([0, 0, 0, -np.pi / 2, 0, np.pi / 2, np.pi / 4])
 
-    def move_command(self, id: str, order: int, target, start=None, do_async=False, extra_fast=False):
+    def move_command(self, id: str, order: int, target, start=None, do_async=False, extra_fast=False, known_q=None):
         if start is None:
             start = self.default_pose
-        q, _, success, _ = self.ik.inverse(target, start, alpha=0.86)
+        if known_q is None:
+            q, _, success, _ = self.ik.inverse(target, start, alpha=0.86)
+        else:
+            q = known_q
         command = Command(id, CommandTypes.MOVE_TO, q, do_async=do_async, extra_fast=extra_fast, order=order)
         self.to_executor.put(command)
         return q
@@ -45,6 +48,7 @@ class Computer:
     def run(self):
         order = 0
         last_q = None
+        cache_q = {}
         while True:
             if not self.from_main.empty():
                 task = self.from_main.get()
@@ -54,7 +58,11 @@ class Computer:
                 # Move to a location
                 if task.task_type == TaskTypes.MOVE_TO:
                     print("Computer got command to move")
-                    last_q = self.move_command(id, order, target, start=last_q, do_async=False)
+                    if id in cache_q:
+                        last_q = self.move_command(id, order, target, start=last_q, do_async=False, known_q=cache_q[id])
+                    else:
+                        last_q = self.move_command(id, order, target, start=last_q, do_async=False)
+                    cache_q[id] = last_q
                     order += 1
 
                 # Move to and grab a block
