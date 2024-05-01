@@ -3,6 +3,7 @@ import numpy as np
 from copy import deepcopy
 from math import pi
 import threading
+import signal
 
 import rospy
 # Common interfaces for interacting with both the simulation and real environments!
@@ -20,9 +21,10 @@ from computer import Computer, Task, TaskTypes
 from executor import Executor, Command, CommandTypes
 from manipulator import Manipulator, Action, ActionType
 from time import sleep
-from routines import stack_static, stack_dynamic, shuffle_blocks
+from routines import stack_static, stack_dynamic, shuffle_blocks, calibration
 import json
 import argparse
+import os
 
 args = argparse.ArgumentParser()
 args.add_argument("config", type=str, help="Path to config file", default="red-sim.json")
@@ -35,15 +37,17 @@ class KnownPoses(Enum):
 
 
 st0 = config["stack_0"]
-STACK_0 = [
-    euler_to_se3(-np.pi, 0, 0, np.array([st0["x"], st0["y"], st0["z"] + i * 0.05])) for i in range(8)
+STATIC_STACK = [
+    euler_to_se3(-np.pi, 0, 0, np.array([st0["x"], st0["y"], st0["z"] + i * 0.05])) for i in range(7)
 ]
+
+for i in range(5):
+    STATIC_STACK.append(euler_to_se3(-np.pi, -np.pi / 2, 0, np.array([st0["x"], st0["y"], st0["z"] + 0.35 + i * 0.05])))
 
 st1 = config["stack_1"]
-STACK_1 = [
+DYNAMIC_STACK = [
     euler_to_se3(-np.pi, 0, 0, np.array([st1["x"], st1["y"], st1["z"] + i * 0.05])) for i in range(8)
 ]
-
 
 class KnownConfigs(Enum):
     START = np.array(
@@ -77,6 +81,12 @@ if __name__ == "__main__":
     manipulator_process = Process(target=manipulator.run)
     manipulator_process.start()
 
+    children = [computer_process, executor_process, manipulator_process]
+    master_pid = os.getpid()
+    print("Master pid:", master_pid)
+    children = [child.pid for child in children]
+    os.system(f"python3 cleaner.py {master_pid} {' '.join(map(str, children))} &")
+
     command = Command("start", CommandTypes.MOVE_TO, KnownConfigs.START.value)
     task = Task("start", TaskTypes.BYPASS, command=command)
     main_to_computer.put(task)
@@ -98,15 +108,8 @@ if __name__ == "__main__":
     task = Task("open", TaskTypes.BYPASS, command=command)
     main_to_computer.put(task)
 
-    #stack_static(main_to_computer, executor_to_main, STACK_0[:4])
-    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:3], config)
-    stack_static(main_to_computer, executor_to_main, STACK_0[:4], config)
-    shuffle_blocks(main_to_computer, STACK_1[:dynamic_grabbed], STACK_0[4:4+dynamic_grabbed])
-    #dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STACK_1[:5], config)
-
-
-    input("Press Enter to kill all")
-    print("Terminating")
-    computer_process.kill()
-    executor_process.kill()
-    manipulator_process.kill()
+    dyn_h = stack_dynamic(main_to_computer, executor_to_main, DYNAMIC_STACK[:3], config)
+    stat_h = stack_static(main_to_computer, executor_to_main, STATIC_STACK[:4], config)
+    shuffle_blocks(main_to_computer, DYNAMIC_STACK[:dyn_h], STATIC_STACK[stat_h:stat_h + dyn_h])
+    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STATIC_STACK[stat_h+dyn_h:], config)
+    calibration(main_to_computer, executor_to_main, config)

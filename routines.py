@@ -63,16 +63,10 @@ def get_goal_pose(pose, dynamic_mode=False, blue=False):
     pose = euler_to_se3(-np.pi, 0, yaw, loc)
     return pose
 
-
-def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list, config: dict):
-    obs = config["static_observations"]
-    observation_poses = [euler_to_se3(pose["roll"], pose["pitch"], pose["yaw"], np.array([pose["x"], pose["y"], pose["z"]])) for pose in obs]
-
-    pos_offsets = config["offset_static"]
-
+def observe_statics(to_computer: Queue, from_executor: Queue, observation_poses):
     blocks = {}
-    for pose in observation_poses:
-        task = Task("static", TaskTypes.MOVE_TO, pose)
+    for i, pose in enumerate(observation_poses):
+        task = Task(f"observe_static-{i}", TaskTypes.MOVE_TO, pose)
         to_computer.put(task)
         observed_blocks = get_blocks(to_computer, from_executor)
         print("observed block:", len(observed_blocks))
@@ -111,8 +105,18 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
         if valid:
             filtered_block_poses.append(pose)
 
-    print("\n Final Blocks observed:", len(filtered_block_poses))
-    static_block_poses = filtered_block_poses
+    return filtered_block_poses
+
+
+def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list, config: dict):
+    obs = config["static_observations"]
+    observation_poses = [euler_to_se3(pose["roll"], pose["pitch"], pose["yaw"], np.array([pose["x"], pose["y"], pose["z"]])) for pose in obs]
+
+    pos_offsets = config["offset_static"]
+
+    static_block_poses = observe_statics(to_computer, from_executor, observation_poses)
+
+    print("\n Final Blocks observed:", len(static_block_poses))
 
     for i in range(len(static_block_poses)):
         pose = get_goal_pose(static_block_poses[i])
@@ -123,6 +127,8 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
         to_computer.put(task)
         task = Task(str(i) + "-stack", TaskTypes.PLACE_BLOCK, stack_positions[i], hover_gap=0.15)
         to_computer.put(task)
+
+    return len(static_block_poses)
 
 
 def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: list, config: dict):
@@ -135,7 +141,7 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: lis
 
     last_pose = None
     for i in range(len(stack_positions)):
-        task = Task("dynamic", TaskTypes.MOVE_TO, observation_pose)
+        task = Task("observe_dynamic", TaskTypes.MOVE_TO, observation_pose)
         to_computer.put(task)
         observed_blocks = []
         found = False
@@ -149,17 +155,15 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: lis
                 pose[0, 3] += pos_offsets["x"]
                 pose[1, 3] += pos_offsets["y"]
                 pose[2, 3] += pos_offsets["z"]
-                print("found block with x", pose[0, 3])
                 if abs(pose[0, 3]) < 0.05:
                     if last_pose is None:
                         last_pose = pose
                     else:
                         loc = pose[:2, 3]
                         last_loc = last_pose[:2, 3]
-                        target = np.array([0.01, -0.01])
                         diff = loc - last_loc
                         print(diff)
-                        if -0.01 < diff[0] < 0.01 and -0.01 < diff[1] < 0.01:
+                        if -0.01 < diff[0] < 0.01 and -0.02 < diff[1] < 0.02:
                             found = True
                             break
                         last_pose = pose
@@ -206,3 +210,92 @@ def shuffle_blocks(to_computer: Queue, from_positions, to_positions):
         task = Task("shuffle", TaskTypes.PLACE_BLOCK, to_positions[to_i], hover_gap=0.1)
         to_computer.put(task)
         to_i += 1
+
+def calibration_print(text):
+    print("--calibration--", text)
+
+def calibration(to_computer: Queue, from_executor, config: dict):
+    calibration_print("Starting calibration")
+    obs = config["static_observations"]
+    observation_poses = [euler_to_se3(pose["roll"], pose["pitch"], pose["yaw"], np.array([pose["x"], pose["y"], pose["z"]])) for pose in obs]
+
+    pos_offsets = config["offset_static"]
+
+    calibration_print("Static Observation positions")
+    counter = 0
+    for i, pose in enumerate(observation_poses):
+        calibration_print(f"Observation {i}")
+        satisfied = False
+        while not satisfied:
+            calibration_print(f"Current x,y,z: {pose[0, 3]}, {pose[1, 3]}, {pose[2, 3]}")
+            task = Task(f"observe_static-{counter}", TaskTypes.MOVE_TO, pose)
+            to_computer.put(task)
+            calibration_print("Input new x, y, z or 'y' if satisfied")
+            response = input()
+            if response == 'y':
+                satisfied = True
+            else:
+                x, y, z = map(float, response.split())
+                pose[0, 3] = x
+                pose[1, 3] = y
+                pose[2, 3] = z
+
+            obs[i]["x"] = pose[0, 3]
+            obs[i]["y"] = pose[1, 3]
+            obs[i]["z"] = pose[2, 3]
+            counter += 1
+
+    calibration_print("Completed Static Observation positions:")
+    print(obs)
+    print("\n\n")
+
+    calibration_print("Static block horizontal offsets")
+
+    static_block_poses = observe_statics(to_computer, from_executor, observation_poses)
+    sample_pose = static_block_poses[0]
+
+    satisfied = False
+    while not satisfied:
+        calibration_print(f"Current x,y: {pos_offsets['x']}, {pos_offsets['y']}")
+        pose = get_goal_pose(sample_pose)
+        pose[0, 3] += pos_offsets["x"]
+        pose[1, 3] += pos_offsets["y"]
+        pose[2, 3] += pos_offsets["z"]
+        hover_pose = pose.copy()
+        hover_pose[2, 3] += 0.05
+        task = Task(f"calibration-{counter}", TaskTypes.MOVE_TO, hover_pose)
+        to_computer.put(task)
+        calibration_print("Input new x, y or 'y' if satisfied")
+        response = input()
+        if response == 'y':
+            satisfied = True
+        else:
+            x, y = map(float, response.split())
+            pos_offsets["x"] = x
+            pos_offsets["y"] = y
+        counter += 1
+
+    calibration_print("Static block vertical offset")
+    satisfied = False
+    while not satisfied:
+        calibration_print(f"Current z: {pos_offsets['z']}")
+        pose = get_goal_pose(sample_pose)
+        pose[0, 3] += pos_offsets["x"]
+        pose[1, 3] += pos_offsets["y"]
+        pose[2, 3] += pos_offsets["z"]
+        task = Task(f"calibration-{counter}", TaskTypes.MOVE_TO, pose)
+        to_computer.put(task)
+        calibration_print("Input new z or 'y' if satisfied")
+        response = input()
+        if response == 'y':
+            satisfied = True
+        else:
+            z = float(response)
+            pos_offsets["z"] = z
+        counter += 1
+
+    calibration_print("Completed Static block offsets:")
+    print(pos_offsets)
+
+
+
