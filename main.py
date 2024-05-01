@@ -3,6 +3,7 @@ import numpy as np
 from copy import deepcopy
 from math import pi
 import threading
+import signal
 
 import rospy
 # Common interfaces for interacting with both the simulation and real environments!
@@ -21,22 +22,33 @@ from executor import Executor, Command, CommandTypes
 from manipulator import Manipulator, Action, ActionType
 from observer import Observer
 from time import sleep
-from routines import stack_static
+from routines import stack_static, stack_dynamic, shuffle_blocks, calibration
+import json
+import argparse
+import os
 
+args = argparse.ArgumentParser()
+args.add_argument("config", type=str, help="Path to config file", default="red-sim.json")
+args = args.parse_args()
+with open(args.config, "r") as f:
+    config = json.load(f)
 
 class KnownPoses(Enum):
     STATIC_OBSERVATION = euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.15, 0.5]))
 
 
-STACK_0 = [
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.225])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.275])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.325])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.375])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.425])),
-    euler_to_se3(-np.pi, 0, 0, np.array([0.55, 0.15, 0.475])),
+st0 = config["stack_0"]
+STATIC_STACK = [
+    euler_to_se3(-np.pi, 0, 0, np.array([st0["x"], st0["y"], st0["z"] + i * 0.05])) for i in range(7)
 ]
 
+for i in range(5):
+    STATIC_STACK.append(euler_to_se3(-np.pi, -np.pi / 2, 0, np.array([st0["x"], st0["y"], st0["z"] + 0.35 + i * 0.05])))
+
+st1 = config["stack_1"]
+DYNAMIC_STACK = [
+    euler_to_se3(-np.pi, 0, 0, np.array([st1["x"], st1["y"], st1["z"] + i * 0.05])) for i in range(8)
+]
 
 class KnownConfigs(Enum):
     START = np.array(
@@ -58,8 +70,9 @@ if __name__ == "__main__":
     static_observations = Queue()
     dynamic_observations = Queue()
     dynamic_locations = Queue()
+    computer_to_main = Queue()
 
-    computer = Computer(main_to_computer, computer_to_executor)
+    computer = Computer(main_to_computer, computer_to_executor, computer_to_main)
     executor = Executor(computer_to_executor, executor_to_main, executor_to_manipulator, manipulator_to_executor,
                         static_observations)
     manipulator = Manipulator(executor_to_manipulator,
@@ -77,6 +90,12 @@ if __name__ == "__main__":
     manipulator_process.start()
     observer_process = Process(target=observer.run)
     observer_process.start()
+
+    children = [computer_process, executor_process, manipulator_process]
+    master_pid = os.getpid()
+    print("Master pid:", master_pid)
+    children = [child.pid for child in children]
+    os.system(f"python3 cleaner.py {master_pid} {' '.join(map(str, children))} &")
 
     command = Command("start", CommandTypes.MOVE_TO, KnownConfigs.START.value)
     task = Task("start", TaskTypes.BYPASS, command=command)
@@ -99,11 +118,8 @@ if __name__ == "__main__":
     task = Task("open", TaskTypes.BYPASS, command=command)
     main_to_computer.put(task)
 
-    #stack_static(main_to_computer, executor_to_main, STACK_0[:4])
-
-    input("Press Enter to kill all")
-    print("Terminating")
-    computer_process.kill()
-    executor_process.kill()
-    manipulator_process.kill()
-    observer_process.kill()
+    dyn_h = stack_dynamic(main_to_computer, executor_to_main, DYNAMIC_STACK[:3], config)
+    stat_h = stack_static(main_to_computer, executor_to_main, STATIC_STACK[:4], config)
+    shuffle_blocks(main_to_computer, DYNAMIC_STACK[:dyn_h], STATIC_STACK[stat_h:stat_h + dyn_h])
+    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STATIC_STACK[stat_h+dyn_h:], config)
+    calibration(main_to_computer, executor_to_main, config)
