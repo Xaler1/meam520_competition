@@ -24,13 +24,16 @@ from observer import Observer
 from time import sleep
 from routines import stack_static, stack_dynamic, shuffle_blocks, calibration
 import json
-import argparse
 import os
 
-args = argparse.ArgumentParser()
-args.add_argument("config", type=str, help="Path to config file", default="red-sim.json")
-args = args.parse_args()
-with open(args.config, "r") as f:
+
+if len(sys.argv) < 2:
+    team = rospy.get_param("team")
+    config = f"config/{team}1.json"
+else:
+    config = sys.argv[1]
+
+with open(config, "r") as f:
     config = json.load(f)
 
 class KnownPoses(Enum):

@@ -1,14 +1,6 @@
 import rospy
 from core.interfaces import ArmController
 from core.interfaces import ObjectDetector
-from lib.calculateFK import FK
-from lib.IK_velocity_null import IK_velocity_null
-from lib.IK_velocity import IK_velocity
-from lib.IK_position_null import IK
-from lib.calcJacobian import calcJacobian
-from core.utils import time_in_seconds
-from lib.calcAngDiff import calcAngDiff
-from lib.utils import euler_to_se3
 
 from multiprocessing import Queue
 from enum import Enum
@@ -16,6 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 from threading import Thread
 from time import sleep
+import logging
 
 
 class ActionType(Enum):
@@ -52,12 +45,14 @@ class Manipulator:
                  from_executor: Queue,
                  static_observations: Queue,
                  dynamic_observations: Queue,
-                 completions: Queue
+                 completions: Queue,
+                 logger
                  ):
         self.from_executor = from_executor
         self.static_observations = static_observations
         self.dynamic_observations = dynamic_observations
         self.completions = completions
+        self.logger = logger
         self.camera_transform = None
 
     def run(self):
@@ -71,7 +66,6 @@ class Manipulator:
             sleep(0.1)
             # Create and post observation
             if self.static_observations.empty():
-                print("Manipulator placing new static observations")
                 detections = detector.get_detections()
                 observation = StaticObservation(
                     camera_transform,
@@ -79,7 +73,6 @@ class Manipulator:
                 )
                 self.static_observations.put(observation)
             if self.dynamic_observations.empty():
-                print("Manipulator placing new dynamic observations")
                 try:
                     mid_rgb = detector.get_mid_rgb()
                     mid_depth = detector.get_mid_depth()
@@ -127,7 +120,6 @@ class Manipulator:
                 if not thread.is_alive():
                     to_delete.append(thread)
             for thread in to_delete:
-                print("Manipulator finished", thread.name)
                 thread.join()
                 threads.remove(thread)
                 self.completions.put(thread.name)
