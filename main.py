@@ -20,6 +20,7 @@ from multiprocessing import Process, Queue
 from computer import Computer, Task, TaskTypes
 from executor import Executor, Command, CommandTypes
 from manipulator import Manipulator, Action, ActionType
+from observer import Observer
 from time import sleep
 from routines import stack_static, stack_dynamic, shuffle_blocks, calibration
 import json
@@ -66,13 +67,20 @@ if __name__ == "__main__":
     executor_to_manipulator = Queue()
     manipulator_to_executor = Queue()
     executor_to_main = Queue()
-    observation_queue = Queue()
+    static_observations = Queue()
+    dynamic_observations = Queue()
+    dynamic_locations = Queue()
     computer_to_main = Queue()
 
     computer = Computer(main_to_computer, computer_to_executor, computer_to_main)
     executor = Executor(computer_to_executor, executor_to_main, executor_to_manipulator, manipulator_to_executor,
-                        observation_queue)
-    manipulator = Manipulator(executor_to_manipulator, observation_queue, manipulator_to_executor)
+                        static_observations)
+    manipulator = Manipulator(executor_to_manipulator,
+                              static_observations,
+                              dynamic_observations,
+                              manipulator_to_executor)
+    observer = Observer(dynamic_locations, dynamic_observations)
+
 
     computer_process = Process(target=computer.run)
     computer_process.start()
@@ -80,6 +88,8 @@ if __name__ == "__main__":
     executor_process.start()
     manipulator_process = Process(target=manipulator.run)
     manipulator_process.start()
+    observer_process = Process(target=observer.run)
+    observer_process.start()
 
     children = [computer_process, executor_process, manipulator_process]
     master_pid = os.getpid()

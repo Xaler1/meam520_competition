@@ -68,8 +68,10 @@ def observe_statics(to_computer: Queue, from_executor: Queue, observation_poses)
     for i, pose in enumerate(observation_poses):
         task = Task(f"observe_static-{i}", TaskTypes.MOVE_TO, pose)
         to_computer.put(task)
+        
         observed_blocks = get_blocks(to_computer, from_executor)
         print("observed block:", len(observed_blocks))
+        
         for name in observed_blocks:
             block = observed_blocks[name]
             if name not in blocks:
