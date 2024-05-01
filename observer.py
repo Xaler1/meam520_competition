@@ -9,7 +9,7 @@ from matplotlib import pyplot as plt
 from dataclasses import dataclass
 
 class Observer:
-    def __init__(self, dyn_locs: Queue, observations: Queue):
+    def __init__(self, dyn_locs: Queue, observations: Queue, team: str):
         """
         :param camera_intrinsics (list): Camera intrinsic parameters (K) (default value is for simulation).
         :param camera_pose (list): Camera pose parameters (default value is for simulation).
@@ -19,27 +19,35 @@ class Observer:
 
         # Class specific variables
         self.NAN_ = 2.0
-        self.right_mask_offset_ = 106
+        self.mask_offset_ = 106
         self.crop_rect_ = (70, 300, 115, 530)
         self.right_angle_threshold_ = 10
+        self.team_ = team
         
         # HSV range for yellow color
         self.lower_yellow_ = np.array([20, 100, 100], dtype=np.uint8)
         self.upper_yellow_ = np.array([30, 255, 255], dtype=np.uint8)
-        self.hsv_threshold = 0.5
+        self.hsv_threshold_ = 0.5
 
-    def run(self):
+    def run(self) -> bool:
         while True:
             sleep(1)
             if not self.observations.empty():
                 self.observations.empty()
+
+                # Clear the dynamic locations queue
+                self.dyn_locs.empty()
                 while not self.observations.empty():
                     sleep(0.1)
                     observation = self.observations.get()
                     depth = observation.mid_depth
                     rgb = observation.mid_rgb
 
-                    _, cropped_rgb = self.preprocess_frames(depth, rgb)
+                    try:
+                        _, cropped_rgb = self.preprocess_frames(depth, rgb)
+                    except Exception as e:
+                        print(f"[WARNING] Dynamic tracking encountered an error: {e} \n Continuing to next frame...")
+                        continue
                     
                     masked_image = self.apply_mask(cropped_rgb)
 
@@ -54,18 +62,24 @@ class Observer:
                     print ("Number of right angle lines: ", len(right_angle_lines))
 
                     # Draw the detected lines on the original image 
-                    # _, axes = plt.subplots(1, 2, figsize=(10, 6))
+                    _, axes = plt.subplots(1, 2, figsize=(10, 6))
                     
-                    # for line1, line2 in right_angle_lines:
-                    #     x1, y1, x2, y2 = line1[0]
-                    #     axes[1].plot([x1, x2], [y1, y2], color='blue', linewidth=2)  
-                    #     x1, y1, x2, y2 = line2[0]
-                    #     axes[1].plot([x1, x2], [y1, y2], color='blue', linewidth=2)  
+                    for line1, line2 in right_angle_lines:
+                        x1, y1, x2, y2 = line1[0]
+                        axes[1].plot([x1, x2], [y1, y2], color='blue', linewidth=2)  
+                        x1, y1, x2, y2 = line2[0]
+                        axes[1].plot([x1, x2], [y1, y2], color='blue', linewidth=2)  
 
-                    # axes[0].imshow(edge_map)
-                    # axes[1].imshow(cropped_rgb)
-                    # plt.show()
+                    axes[0].imshow(edge_map)
+                    axes[1].imshow(cropped_rgb)
+                    plt.show()
 
+                    if len(right_angle_lines) > 0:
+                        self.dyn_locs.put(right_angle_lines)
+                    else:
+                        self.dyn_locs.put(None)
+
+                    print ("Dynamic locations: ", self.dyn_locs.get())
 
     def filter_right_angle_lines(self, lines: np.ndarray, masked_image: np.ndarray) -> np.ndarray:
         """
@@ -143,15 +157,20 @@ class Observer:
     def apply_mask(self, rgb_frame: np.ndarray) -> np.ndarray:
         """
         Apply a mask to get grabbable region of interest.
-        Masks the right half of the image to remove the non-grabbable area with a parameterized width.
+        Masks half of the image based on current team to remove the non-grabbable area with a parameterized width.
 
         :param rgb_frame (np.ndarray): Preprocessed RGB frame to apply the mask to.
 
         :return: masked_image (np.ndarray): Image with mask applied.
         """
         mask = np.ones_like(rgb_frame[:, :, 0])  # Initialize mask with ones (white)
-        # Set the right half of the mask to zero (black)
-        mask[:, rgb_frame.shape[1]//2 - self.right_mask_offset_:] = 0  
+
+        if self.team_ == "blue":
+            # Set the left half of the mask to zero (black)
+            mask[:, :rgb_frame.shape[1]//2 + self.mask_offset_] = 0
+        else:
+            # Set the right half of the mask to zero (black)
+            mask[:, rgb_frame.shape[1]//2 - self.mask_offset_:] = 0
 
         # Multiply the image with the mask to make the right half black
         masked_image = rgb_frame.copy()
@@ -173,7 +192,7 @@ class Observer:
         yellow_mask = cv2.inRange(hsv_roi, self.lower_yellow_, self.upper_yellow_)
         yellow_pixels = cv2.countNonZero(yellow_mask)
         total_pixels = roi.shape[0] * roi.shape[1]
-        return yellow_pixels / total_pixels > self.hsv_threshold
+        return yellow_pixels / total_pixels > self.hsv_threshold_
 
     
     
