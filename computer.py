@@ -54,12 +54,12 @@ class Computer:
                 task = self.from_main.get()
                 target = task.target_pose
                 id = task.id
-                print("Computer got command", task.task_type, "for", id)
+                print("[INFO] Computer got command", task.task_type, "for", id)
 
                 # Move to a location
                 if task.task_type == TaskTypes.MOVE_TO:
                     if id in cache_q:
-                        print("Using cached position for", id)
+                        print("[INFO] Using cached position for", id)
                         last_q = self.move_command(id, order, target, start=last_q, do_async=False, known_q=cache_q[id])
                     else:
                         last_q = self.move_command(id, order, target, start=last_q, do_async=False)

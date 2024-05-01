@@ -91,9 +91,9 @@ if __name__ == "__main__":
     observer_process = Process(target=observer.run)
     observer_process.start()
 
-    children = [computer_process, executor_process, manipulator_process]
+    children = [computer_process, executor_process, manipulator_process, observer_process]
     master_pid = os.getpid()
-    print("Master pid:", master_pid)
+    print("[INFO] Master pid:", master_pid)
     children = [child.pid for child in children]
     os.system(f"python3 cleaner.py {master_pid} {' '.join(map(str, children))} &")
 
@@ -102,7 +102,7 @@ if __name__ == "__main__":
     main_to_computer.put(task)
     while executor_to_main.empty():
         sleep(0.1)
-    print("Moved to start pose")
+    print("[INFO] Moved to start pose")
     executor_to_main.get()
 
     print("\n****************")
@@ -118,8 +118,8 @@ if __name__ == "__main__":
     task = Task("open", TaskTypes.BYPASS, command=command)
     main_to_computer.put(task)
 
-    # dyn_h = stack_dynamic(main_to_computer, executor_to_main, DYNAMIC_STACK[:3], config)
-    # stat_h = stack_static(main_to_computer, executor_to_main, STATIC_STACK[:4], config)
-    # shuffle_blocks(main_to_computer, DYNAMIC_STACK[:dyn_h], STATIC_STACK[stat_h:stat_h + dyn_h])
-    # dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STATIC_STACK[stat_h+dyn_h:], config)
+    dyn_h = stack_dynamic(main_to_computer, executor_to_main, DYNAMIC_STACK[:3], config)
+    stat_h, dyn_h = stack_static(main_to_computer, executor_to_main, STATIC_STACK[:4], config, dynamic_locations, DYNAMIC_STACK[dyn_h:], dyn_h)
+    shuffle_blocks(main_to_computer, DYNAMIC_STACK[:dyn_h], STATIC_STACK[stat_h:stat_h + dyn_h])
+    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STATIC_STACK[stat_h+dyn_h:], config)
     # calibration(main_to_computer, executor_to_main, config)

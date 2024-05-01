@@ -38,7 +38,7 @@ def get_goal_pose(pose, dynamic_mode=False, blue=False):
             break
 
     if yaw is None:
-        print("Catastrophic error, failed to determine yaw")
+        print("[ERROR] Catastrophic error, failed to determine yaw")
         return
 
     while yaw > np.pi / 2:
@@ -70,7 +70,7 @@ def observe_statics(to_computer: Queue, from_executor: Queue, observation_poses)
         to_computer.put(task)
         
         observed_blocks = get_blocks(to_computer, from_executor)
-        print("observed block:", len(observed_blocks))
+        print("[INFO] Observed block:", len(observed_blocks))
         
         for name in observed_blocks:
             block = observed_blocks[name]
@@ -110,7 +110,14 @@ def observe_statics(to_computer: Queue, from_executor: Queue, observation_poses)
     return filtered_block_poses
 
 
-def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list, config: dict):
+def stack_static(to_computer: Queue, 
+                 from_executor: Queue, 
+                 static_stack_positions: list, 
+                 config: dict, 
+                 dynamic_locations: Queue, 
+                 dynamic_stack_positions: list, 
+                 dyn_h: int):
+    
     obs = config["static_observations"]
     observation_poses = [euler_to_se3(pose["roll"], pose["pitch"], pose["yaw"], np.array([pose["x"], pose["y"], pose["z"]])) for pose in obs]
 
@@ -120,17 +127,30 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
 
     print("\n Final Blocks observed:", len(static_block_poses))
 
+    dynamic_blocks_stacked = 0
+
     for i in range(len(static_block_poses)):
+        # TODO: (Satrajit) Here we check if a dynamic block can be grabbed. 
+        # If yes, we do that first and return here
+
+        if (dynamic_locations.qsize() > 0):
+            print("[INFO] Dynamic block found, moving to dynamic stack")
+            stack_dynamic(to_computer, 
+                                 from_executor, 
+                                 dynamic_stack_positions[dyn_h + dynamic_blocks_stacked], 
+                                 config)
+            dynamic_blocks_stacked += 1
+
         pose = get_goal_pose(static_block_poses[i])
         pose[0, 3] += pos_offsets["x"]
         pose[1, 3] += pos_offsets["y"]
         pose[2, 3] += pos_offsets["z"]
         task = Task(str(i) + "-grab", TaskTypes.GRAB_BLOCK, pose, hover_gap=0.2)
         to_computer.put(task)
-        task = Task(str(i) + "-stack", TaskTypes.PLACE_BLOCK, stack_positions[i], hover_gap=0.15)
+        task = Task(str(i) + "-stack", TaskTypes.PLACE_BLOCK, static_stack_positions[i], hover_gap=0.15)
         to_computer.put(task)
 
-    return len(static_block_poses)
+    return len(static_block_poses), dynamic_blocks_stacked + dyn_h
 
 
 def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: list, config: dict):
@@ -142,6 +162,7 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: lis
     w = np.pi * 2 * 0.52 / 60
 
     last_pose = None
+    
     for i in range(len(stack_positions)):
         task = Task("observe_dynamic", TaskTypes.MOVE_TO, observation_pose)
         to_computer.put(task)
@@ -201,12 +222,15 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: lis
         task = Task("dynamic", TaskTypes.PLACE_BLOCK, stack_positions[i])
         to_computer.put(task)
 
-    return 3
+    return len(stack_positions)
 
 
 def shuffle_blocks(to_computer: Queue, from_positions, to_positions):
     to_i = 0
     for i in range(len(from_positions) - 1, -1, -1):
+        # TODO: (Satrajit) Here we check if a dynamic block can be grabbed.
+        # If yes, we do that first and return here
+
         task = Task("shuffle", TaskTypes.GRAB_BLOCK, from_positions[i], hover_gap=0.1)
         to_computer.put(task)
         task = Task("shuffle", TaskTypes.PLACE_BLOCK, to_positions[to_i], hover_gap=0.1)

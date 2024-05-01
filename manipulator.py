@@ -71,7 +71,7 @@ class Manipulator:
             sleep(0.1)
             # Create and post observation
             if self.static_observations.empty():
-                print("Manipulator placing new static observations")
+                print("[INFO] Manipulator placing new static observations")
                 detections = detector.get_detections()
                 observation = StaticObservation(
                     camera_transform,
@@ -79,7 +79,7 @@ class Manipulator:
                 )
                 self.static_observations.put(observation)
             if self.dynamic_observations.empty():
-                print("Manipulator placing new dynamic observations")
+                print("[INFO] Manipulator placing new dynamic observations")
                 try:
                     mid_rgb = detector.get_mid_rgb()
                     mid_depth = detector.get_mid_depth()
@@ -127,7 +127,7 @@ class Manipulator:
                 if not thread.is_alive():
                     to_delete.append(thread)
             for thread in to_delete:
-                print("Manipulator finished", thread.name)
+                print("[INFO] Manipulator finished", thread.name)
                 thread.join()
                 threads.remove(thread)
                 self.completions.put(thread.name)

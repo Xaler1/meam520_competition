@@ -11,8 +11,9 @@ from dataclasses import dataclass
 class Observer:
     def __init__(self, dyn_locs: Queue, observations: Queue, team: str):
         """
-        :param camera_intrinsics (list): Camera intrinsic parameters (K) (default value is for simulation).
-        :param camera_pose (list): Camera pose parameters (default value is for simulation).
+        :param dyn_locs (Queue): Queue to store the dynamic locations.
+        :param observations (Queue): Queue to store the observations.
+        :param team (str): Team color.
         """
         self.observations = observations
         self.dyn_locs = dyn_locs
@@ -30,6 +31,11 @@ class Observer:
         self.hsv_threshold_ = 0.5
 
     def run(self) -> bool:
+        """
+        Run the observer process to detect dynamic locations.
+
+        :return: bool: True if the process ran successfully.
+        """
         while True:
             sleep(1)
             if not self.observations.empty():
@@ -62,22 +68,20 @@ class Observer:
                     print ("Number of right angle lines: ", len(right_angle_lines))
 
                     # Draw the detected lines on the original image 
-                    _, axes = plt.subplots(1, 2, figsize=(10, 6))
+                    # _, axes = plt.subplots(1, 2, figsize=(10, 6))
                     
-                    for line1, line2 in right_angle_lines:
-                        x1, y1, x2, y2 = line1[0]
-                        axes[1].plot([x1, x2], [y1, y2], color='blue', linewidth=2)  
-                        x1, y1, x2, y2 = line2[0]
-                        axes[1].plot([x1, x2], [y1, y2], color='blue', linewidth=2)  
+                    # for line1, line2 in right_angle_lines:
+                    #     x1, y1, x2, y2 = line1[0]
+                    #     axes[1].plot([x1, x2], [y1, y2], color='blue', linewidth=2)  
+                    #     x1, y1, x2, y2 = line2[0]
+                    #     axes[1].plot([x1, x2], [y1, y2], color='blue', linewidth=2)  
 
-                    axes[0].imshow(edge_map)
-                    axes[1].imshow(cropped_rgb)
-                    plt.show()
+                    # axes[0].imshow(edge_map)
+                    # axes[1].imshow(cropped_rgb)
+                    # plt.show()
 
                     if len(right_angle_lines) > 0:
                         self.dyn_locs.put(right_angle_lines)
-                    else:
-                        self.dyn_locs.put(None)
 
                     print ("Dynamic locations: ", self.dyn_locs.get())
 
@@ -192,7 +196,5 @@ class Observer:
         yellow_mask = cv2.inRange(hsv_roi, self.lower_yellow_, self.upper_yellow_)
         yellow_pixels = cv2.countNonZero(yellow_mask)
         total_pixels = roi.shape[0] * roi.shape[1]
-        return yellow_pixels / total_pixels > self.hsv_threshold_
-
-    
+        return yellow_pixels / total_pixels > self.hsv_threshold_    
     

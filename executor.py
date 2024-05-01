@@ -54,7 +54,7 @@ class Executor:
         self.observations = observations
 
     def get_observed_blocks(self, current_q, H_ee_camera, detections):
-        print("Observed", len(detections), "blocks")
+        print("[INFO] Observed", len(detections), "blocks")
         transforms = self.fk.compute_Ai(current_q)
         H0c = transforms[-1] @ H_ee_camera
         block_poses = {}
@@ -74,7 +74,7 @@ class Executor:
     def run_command(self, command: Command, current_config):
         id = command.id
         # Moving to config q
-        print("Executor got command:", id, "| Async:", command.do_async)
+        print("[INFO] Executor got command:", id, "| Async:", command.do_async)
         if command.command_type == CommandTypes.MOVE_TO:
             if command.do_async and current_config is not None:
                 diff = np.abs(current_config - command.target_q)
@@ -86,7 +86,7 @@ class Executor:
                 timing = 1 * dist + 0.8
                 if command.extra_fast:
                     timing -= 0.8
-                print("timing", timing)
+                print("[INFO] timing", timing)
                 sleep(timing)
                 action = Action(id, ActionType.MOVE_TO, target_q=command.target_q)
                 self.to_manipulator.put(action)
@@ -99,7 +99,7 @@ class Executor:
 
         # Closing the gripper
         elif command.command_type == CommandTypes.CLOSE_GRIPPER:
-            print("Executer got command to close gripper")
+            print("[INFO] Executer got command to close gripper")
             action = Action(id, ActionType.CLOSE_GRIPPER)
             self.to_manipulator.put(action)
             if not command.do_async:
@@ -107,7 +107,7 @@ class Executor:
 
         # Grabbing a block
         elif command.command_type == CommandTypes.GRAB_BLOCK:
-            print("Executor got command to grab block")
+            print("[INFO] Executor got command to grab block")
             action = Action(id, ActionType.SET_GRIPPER, target_width=0.045, target_force=50)
             self.to_manipulator.put(action)
             if not command.do_async:
@@ -117,7 +117,7 @@ class Executor:
 
         # Opening gripper
         elif command.command_type == CommandTypes.OPEN_GRIPPER:
-            print("Executor got command to open gripper")
+            print("[INFO] Executor got command to open gripper")
             action = Action(id, ActionType.OPEN_GRIPPER)
             self.to_manipulator.put(action)
             if not command.do_async:
@@ -125,7 +125,7 @@ class Executor:
 
         # Getting a list of observed blocks
         elif command.command_type == CommandTypes.GET_OBSERVED_BLOCKS:
-            print("Executor got command to get observed blocks")
+            print("[INFO] Executor got command to get observed blocks")
             if not self.observations.empty():
                 self.observations.get()
             while True:
@@ -139,7 +139,7 @@ class Executor:
             self.to_main.put(id)
             self.to_main.put(poses)
 
-        print("Executor finished", id)
+        print("[INFO] Executor finished", id)
         if command.command_type != CommandTypes.GET_OBSERVED_BLOCKS:
             self.to_main.put(id)
         return current_config
@@ -150,13 +150,13 @@ class Executor:
         holdback = None
         while True:
             if holdback is not None and holdback.order == order:
-                print("Executor executing held-back command, pray to god this is the only one")
+                print("[INFO] Executor executing held-back command, pray to god this is the only one")
                 current_config = self.run_command(holdback, current_config)
                 order += 1
             if not self.from_computer.empty():
                 command = self.from_computer.get()
                 if order < command.order:
-                    print("Executor got out of order command. Expected:", order, " Actual:", command.order)
+                    print("[INFO] Executor got out of order command. Expected:", order, " Actual:", command.order)
                     holdback = command
                     continue
                 order += 1
