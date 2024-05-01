@@ -5,6 +5,7 @@ from lib.utils import euler_to_se3
 import numpy as np
 import time
 from time import sleep
+import random
 
 def get_blocks(to_computer: Queue, from_executor: Queue):
     command = Command("observe", CommandTypes.GET_OBSERVED_BLOCKS)
@@ -133,7 +134,7 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
     return len(static_block_poses)
 
 
-def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: list, config: dict):
+def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue, stack_positions: list, config: dict):
 
     pos_offsets = config["offset_dynamic"]
     obs = config["dynamic_observation"]
@@ -141,6 +142,7 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: lis
     observation_pose = euler_to_se3(obs["roll"], obs["pitch"], obs["yaw"], np.array([obs["x"], obs["y"], obs["z"]]))
     w = np.pi * 2 * 0.52 / 60
 
+    successful = 0
     last_pose = None
     for i in range(len(stack_positions)):
         task = Task("observe_dynamic", TaskTypes.MOVE_TO, observation_pose)
@@ -196,12 +198,23 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, stack_positions: lis
         print("\n target pose")
         print(pose)
 
+        while not from_computer.empty():
+            from_computer.get()
         task = Task("dynamic", TaskTypes.GRAB_BLOCK, pose, hover_gap=0.05)
         to_computer.put(task)
-        task = Task("dynamic", TaskTypes.PLACE_BLOCK, stack_positions[i])
-        to_computer.put(task)
 
-    return 3
+        # Verify that the arm was able to grab the dynamic block
+        while from_computer.empty():
+            sleep(0.1)
+        result = from_computer.get()
+        if not result:
+            continue
+
+        task = Task("dynamic", TaskTypes.PLACE_BLOCK, stack_positions[successful])
+        to_computer.put(task)
+        successful += 1
+
+    return successful
 
 
 def shuffle_blocks(to_computer: Queue, from_positions, to_positions):

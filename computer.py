@@ -13,7 +13,6 @@ class TaskTypes(Enum):
     PLACE_BLOCK = 2
     MOVE_TO = 3
     BYPASS = 4
-    MOVE_BLOCK = 5
 
 
 @dataclass
@@ -39,6 +38,8 @@ class Computer:
             start = self.default_pose
         if known_q is None:
             q, _, success, _ = self.ik.inverse(target, start, alpha=0.86)
+            if not success:
+                return None, success
         else:
             q = known_q
         command = Command(id, CommandTypes.MOVE_TO, q, do_async=do_async, extra_fast=extra_fast, order=order)
@@ -70,9 +71,18 @@ class Computer:
                 elif task.task_type == TaskTypes.GRAB_BLOCK:
                     hover_pose = task.target_pose.copy()
                     hover_pose[2, 3] += task.hover_gap
-                    q = self.move_command(id + "-0", order, hover_pose, start=last_q, do_async=True, extra_fast=True)
+                    q, success = self.move_command(id + "-0", order, hover_pose, start=last_q, do_async=True, extra_fast=True)
+                    if not success:
+                        self.to_main.put(False)
+                        continue
                     order += 1
-                    self.move_command(id + "-1", order, target, start=q, do_async=True)
+                    _, success =  self.move_command(id + "-1", order, target, start=q, do_async=True)
+                    if not success:
+                        command = Command(id + "-3", CommandTypes.MOVE_TO, q, do_async=True, order=order)
+                        self.to_executor.put(command)
+                        last_q = q
+                        self.to_main.put(False)
+                        continue
                     order += 1
                     command = Command(id + "-2", CommandTypes.GRAB_BLOCK, do_async=True, order=order)
                     order += 1
@@ -81,11 +91,14 @@ class Computer:
                     self.to_executor.put(command)
                     last_q = q
 
+                    self.to_main.put(True)
+
+
                 # Move to a location and place a block
                 elif task.task_type == TaskTypes.PLACE_BLOCK:
                     hover_pose = task.target_pose.copy()
                     hover_pose[2, 3] += task.hover_gap
-                    q = self.move_command(id + "-0", order, hover_pose, do_async=True, extra_fast=True)
+                    q, _ = self.move_command(id + "-0", order, hover_pose, do_async=True, extra_fast=True)
                     order += 1
                     self.move_command(id + "-1", order, target, start=q, do_async=True)
                     order += 1
@@ -95,34 +108,6 @@ class Computer:
                     command = Command(id + "-3", CommandTypes.MOVE_TO, q, do_async=True, order=order)
                     self.to_executor.put(command)
                     last_q = q
-
-                elif task.task_type == TaskTypes.MOVE_BLOCK:
-                    target1 = task.target_pose
-                    target2 = task.target_pose2
-                    max_height = max(target1[2, 3], target2[2, 3])
-                    hover_pose = target1.copy()
-                    hover_pose[2, 3] = max_height + task.hover_gap
-                    q = self.move_command(id + "-0", order, hover_pose, start=last_q, do_async=True)
-                    order += 1
-                    q = self.move_command(id + "-1", order, target1, start=q, do_async=True)
-                    order += 1
-                    command = Command(id + "-2", CommandTypes.GRAB_BLOCK, do_async=True, order=order)
-                    order += 1
-                    self.to_executor.put(command)
-                    q = self.move_command(id + "-3", order, hover_pose, start=q, do_async=True)
-                    order += 1
-
-                    hover_pose = target2.copy()
-                    hover_pose[2, 3] = max_height + task.hover_gap
-                    q = self.move_command(id + "-4", order, hover_pose, start=q, do_async=True)
-                    order += 1
-                    q = self.move_command(id + "-5", order, target2, start=q, do_async=True)
-                    order += 1
-                    command = Command(id + "-6", CommandTypes.OPEN_GRIPPER, do_async=True, order=order)
-                    order += 1
-                    self.to_executor.put(command)
-                    q = self.move_command(id + "-7", order, hover_pose, start=q, do_async=True)
-                    order += 1
 
 
 
