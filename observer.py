@@ -1,206 +1,179 @@
+from typing import Tuple
 from multiprocessing import Queue
 from scipy import ndimage
 import numpy as np
 import cv2
 from time import sleep
 import time
-import matplotlib
 from matplotlib import pyplot as plt
 from dataclasses import dataclass
 
-@dataclass
-class Block:
-    loc: np.ndarray
-    life: int
-    pair: list
-
 class Observer:
     def __init__(self, dyn_locs: Queue, observations: Queue):
+        """
+        :param camera_intrinsics (list): Camera intrinsic parameters (K) (default value is for simulation).
+        :param camera_pose (list): Camera pose parameters (default value is for simulation).
+        """
         self.observations = observations
         self.dyn_locs = dyn_locs
 
+        # Class specific variables
+        self.NAN_ = 2.0
+        self.right_mask_offset_ = 106
+        self.crop_rect_ = (70, 300, 115, 530)
+        self.right_angle_threshold_ = 10
+        
+        # HSV range for yellow color
+        self.lower_yellow_ = np.array([20, 100, 100], dtype=np.uint8)
+        self.upper_yellow_ = np.array([30, 255, 255], dtype=np.uint8)
+        self.hsv_threshold = 0.5
+
     def run(self):
-        counter = 0
-        plt_colors = ["red",
-                      "blue",
-                      "purple",
-                      "cyan",
-                      "black",
-                      "brown",
-                      "pink",
-                      "orange",
-                      "white",
-                      "white",
-                      "white"]
-        blocks = []
         while True:
             sleep(1)
             if not self.observations.empty():
                 self.observations.empty()
-            while self.observations.empty():
-                sleep(0.1)
-            observation = self.observations.get()
-            observation_time = time.time()
-            depth = observation.mid_depth
-            rgb = observation.mid_rgb
-            if depth is None:
-                print("depth is None")
-                continue
+                while not self.observations.empty():
+                    sleep(0.1)
+                    observation = self.observations.get()
+                    depth = observation.mid_depth
+                    rgb = observation.mid_rgb
 
-            depth = np.nan_to_num(depth, nan=2.0)
-            cropped = depth[70:300, 100:535].copy()
-            cropped_rgb = rgb[70:300, 100:535].copy()
-            threshold = 1.4
-            cropped[cropped > threshold] = 2.0
-            gradient_x = ndimage.sobel(cropped, axis=0)
-            gradient_y = ndimage.sobel(cropped, axis=1)
-            edges = np.sqrt(gradient_x ** 2 + gradient_y ** 2)
-            edges = edges > 0.1
+                    _, cropped_rgb = self.preprocess_frames(depth, rgb)
+                    
+                    masked_image = self.apply_mask(cropped_rgb)
 
-            lines = cv2.HoughLinesP((edges * 255).astype(np.uint8), 1, np.pi / 180, threshold=15, minLineLength=20,
-                                    maxLineGap=5)
+                    edge_map = self.get_edge_map(masked_image)
 
-            output_image = cropped_rgb.copy()
-            output_image = cv2.cvtColor(output_image, cv2.COLOR_RGB2BGR)
+                    lines = self.get_lines(edge_map)
 
-            filtered_lines = []
-            for line in lines:
-                x1, y1, x2, y2 = line[0]
-                if len(filtered_lines) == 0:
-                    filtered_lines.append(line)
-                else:
-                    unique = True
-                    for i, filtered_line in enumerate(filtered_lines):
-                        x1_, y1_, x2_, y2_ = filtered_line[0]
-                        if np.abs(x1 - x1_) < 20 and np.abs(y1 - y1_) < 20 and np.abs(x2 - x2_) < 20 and np.abs(
-                                y2 - y2_) < 20:
-                            unique = False
-                            break
-                    if unique:
-                        filtered_lines.append(line)
+                    print ("Number of lines: ", len(lines))
 
-            horizontal_lines = []
-            vertical_lines = []
-            for line in filtered_lines:
-                x1, y1, x2, y2 = line[0]
-                length = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
-                if length > 70:
-                    continue
-                angle = np.rad2deg(np.arctan2(y2 - y1, x2 - x1))
-                if angle < 25 and angle > -25:
-                    mid_y = (y1 + y2) / 2
-                    if mid_y > 160:
-                        continue
-                    horizontal_lines.append(line)
-                elif angle < -75 or angle > 75:
-                    mid_x = (x1 + x2) / 2
-                    if mid_x < 25 or mid_x > 420:
-                        continue
-                    vertical_lines.append(line)
+                    right_angle_lines = self.filter_right_angle_lines(lines, masked_image)
 
-            horizontal_mids = []
-            for line in horizontal_lines:
-                x1, y1, x2, y2 = line[0]
-                mid_x = (x1 + x2) / 2
-                mid_y = (y1 + y2) / 2
-                width = np.abs(x2-x1)
-                horizontal_mids.append([mid_x, mid_y, width])
+                    print ("Number of right angle lines: ", len(right_angle_lines))
 
-            # find pairs of parallel vertical lines that are a certain distance from each other
-            # store as pairs of lines
-            vertical_pairs = []
-            found = []
-            for i, line1 in enumerate(vertical_lines):
-                if i in found:
-                    continue
-                x1, y1, x2, y2 = line1[0]
-                mid_x = (x1 + x2) / 2
-                mid_y = (y1 + y2) / 2
-                for j, line2 in enumerate(vertical_lines):
-                    if i == j or j in found:
-                        continue
-                    x1_, y1_, x2_, y2_ = line2[0]
-                    mid_x_ = (x1_ + x2_) / 2
-                    mid_y_ = (y1_ + y2_) / 2
-                    diff_x = np.abs(mid_x - mid_x_)
-                    diff_y = np.abs(mid_y - mid_y_)
-                    if diff_y < 20 and 30 < diff_x < 80:
-                        left_x = min(mid_x, mid_x_)
-                        right_x = max(mid_x, mid_x_)
-                        y = (mid_y + mid_y_) / 2
-                        for mids in horizontal_mids:
-                            if left_x < mids[0] < right_x and 5 < (y - mids[1]) < 40 and (1.0*mids[2]/diff_x) > 0.5:
-                                vertical_pairs.append([line1, line2])
-                                found.append(i)
-                                found.append(j)
-                                break
+                    # Draw the detected lines on the original image 
+                    # _, axes = plt.subplots(1, 2, figsize=(10, 6))
+                    
+                    # for line1, line2 in right_angle_lines:
+                    #     x1, y1, x2, y2 = line1[0]
+                    #     axes[1].plot([x1, x2], [y1, y2], color='blue', linewidth=2)  
+                    #     x1, y1, x2, y2 = line2[0]
+                    #     axes[1].plot([x1, x2], [y1, y2], color='blue', linewidth=2)  
+
+                    # axes[0].imshow(edge_map)
+                    # axes[1].imshow(cropped_rgb)
+                    # plt.show()
 
 
-            plt.figure(figsize=(9, 5))
-            plt.imshow(output_image)
-            for block in blocks:
-                block.life -= 1
+    def filter_right_angle_lines(self, lines: np.ndarray, masked_image: np.ndarray) -> np.ndarray:
+        """
+        Filter line segments to identify pairs that are approximately orthogonal.
 
-            for line in horizontal_lines:
-                x1, y1, x2, y2 = line[0]
-                plt.plot([x1, x2], [y1, y2], color="green", linewidth=2)
+        :param lines (np.ndarray): Detected line segments.
 
-            for pair in vertical_pairs:
-                x1_1, y1_1, x2_1, y2_1 = pair[0][0]
-                x1_2, y1_2, x2_2, y2_2 = pair[1][0]
+        :return: right_angle_lines (np.ndarray): Filtered right angle line segments.
+        """
+        right_angle_lines = []
+        for line1 in lines:
+            x1, y1, x2, y2 = line1[0]
+            roi1 = masked_image[min(y1, y2):max(y1, y2), min(x1, x2):max(x1, x2)]
+            for line2 in lines:
+                # Calculate the angle between the two lines
+                angle = np.abs(np.arctan2(line2[0][3] - line2[0][1], line2[0][2] - line2[0][0]) -
+                               np.arctan2(line1[0][3] - line1[0][1], line1[0][2] - line1[0][0]))
+                angle_deg = np.degrees(angle)
 
-                top_1 = min(y1_1, y2_1)
-                top_2 = min(y1_2, y2_2)
+                # Check if the angle difference is close to 90 degrees
+                if np.abs(angle_deg - 90) < self.right_angle_threshold_:
+                    x1, y1, x2, y2 = line2[0]
+                    roi2 = masked_image[min(y1, y2):max(y1, y2), min(x1, x2):max(x1, x2)]
+                    if (roi1.shape[0] != 0 and roi1.shape[1] != 0) and (roi2.shape[0] != 0 and roi2.shape[1] != 0):
+                        # Check if the region of interest is yellow in color
+                        if (self.is_yellow_color(roi1) and self.is_yellow_color(roi2)):
+                            right_angle_lines.append((line1, line2))
 
-                mid_y = (top_1 + top_2) / 2
-                mid_x = (x1_1 + x2_1 + x1_2 + x2_2) / 4
-                coords = np.array([mid_x, mid_y])
+        return np.array(right_angle_lines)
+    
+    def preprocess_frames(self, depth_frame: np.ndarray, rgb_frame) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Preprocess the frame to remove noise and improve edge detection.
 
-                found = False
-                for block in blocks:
-                    dist = np.linalg.norm(block.loc - coords)
-                    if dist < 20:
-                        found = True
-                        block.loc = np.array([mid_x, mid_y])
-                        block.life = 20
-                        block.pair = pair
-                        break
-                if not found:
-                    blocks.append(Block(np.array([mid_x, mid_y]), 20, pair))
+        :param depth_frame (np.ndarray): Depth frame.
+        :param rgb_frame (np.ndarray): RGB frame.
 
+        :return: tuple[np.ndarray, np.ndarray]: Preprocessed depth and RGB frames.
+        """
+        # TODO: (Satrajit) Kind of inconclusive if these filters are necessary
+        # depth = cv2.medianBlur(depth, 5)
+        # depth = cv2.morphologyEx(depth, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+        depth_frame = np.nan_to_num(depth_frame, nan=self.NAN_)
+        cropped_depth = depth_frame[self.crop_rect_[0]:self.crop_rect_[1], self.crop_rect_[2]:self.crop_rect_[3]]
+        cropped_rgb = rgb_frame[self.crop_rect_[0]:self.crop_rect_[1], self.crop_rect_[2]:self.crop_rect_[3]]
+        cropped_rgb = cv2.cvtColor(cropped_rgb, cv2.COLOR_BGR2RGB)
+        # cropped_rgb = cv2.bilateralFilter(cropped_rgb, 9, 45, 60)
 
-            to_remove = []
-            for i, block in enumerate(blocks):
-                if block.life <= 0:
-                    to_remove.append(i)
-            for i, idx in enumerate(to_remove):
-                blocks.pop(idx - i)
+        return tuple([cropped_depth, cropped_rgb])
+    
+    
+    def get_edge_map(self, rgb_frame: np.ndarray) -> np.ndarray:
+        """
+        Get the edge map using the Canny edge detector.
 
+        :param rgb_frame (np.ndarray): RGB frame.
 
-            # print("Vertical pairs found:", len(vertical_pairs))
-            # for i, pair in enumerate(vertical_pairs):
-            #     x1, y1, x2, y2 = pair[0][0]
-            #     plt.plot([x1, x2], [y1, y2], color=plt_colors[i], linewidth=2, label=f"Cube {i}")
-            #     x1, y1, x2, y2 = pair[1][0]
-            #     plt.plot([x1, x2], [y1, y2], color=plt_colors[i], linewidth=2)
+        :return: edge_map (np.ndarray): Edge map.
+        """
+        grayscale_image = cv2.cvtColor(rgb_frame, cv2.COLOR_RGB2GRAY)
+        return cv2.Canny(grayscale_image, threshold1=50, threshold2=350)
+    
+    
+    def get_lines(self, edge_map: np.ndarray) -> np.ndarray:
+        """
+        Use the Probabilistic Hough Transform to detect line segments in the edge map.
 
-            for i, block in enumerate(blocks):
-                pair = block.pair
-                alpha = block.life / 20.0
-                x1, y1, x2, y2 = pair[0][0]
-                plt.plot([x1, x2], [y1, y2], color=plt_colors[i], linewidth=2, label=f"Cube {i}", alpha=alpha)
-                x1, y1, x2, y2 = pair[1][0]
-                plt.plot([x1, x2], [y1, y2], color=plt_colors[i], linewidth=2, alpha=alpha)
-                x, y = block.loc
-                plt.scatter(x, y, color=plt_colors[i], s=100, alpha=alpha)
+        :param edge_map (np.ndarray): Edge map.
 
-            end = time.time()
-            timing = end - observation_time
-            timing = np.round(timing, 2)
-            plt.axis('off')
-            plt.legend(loc='lower left')
-            plt.tight_layout()
-            plt.title(f"Frame {counter} - Time: {timing}s - Pairs: {len(vertical_pairs)}")
-            plt.savefig(f"plots/output-{counter}.png")
-            counter += 1
-            plt.close()
+        :return: lines (np.ndarray): Detected line segments.
+        """
+        return cv2.HoughLinesP(edge_map, rho=1, theta=np.pi/180, threshold=15, minLineLength=20, maxLineGap=5)
+    
+
+    def apply_mask(self, rgb_frame: np.ndarray) -> np.ndarray:
+        """
+        Apply a mask to get grabbable region of interest.
+        Masks the right half of the image to remove the non-grabbable area with a parameterized width.
+
+        :param rgb_frame (np.ndarray): Preprocessed RGB frame to apply the mask to.
+
+        :return: masked_image (np.ndarray): Image with mask applied.
+        """
+        mask = np.ones_like(rgb_frame[:, :, 0])  # Initialize mask with ones (white)
+        # Set the right half of the mask to zero (black)
+        mask[:, rgb_frame.shape[1]//2 - self.right_mask_offset_:] = 0  
+
+        # Multiply the image with the mask to make the right half black
+        masked_image = rgb_frame.copy()
+        masked_image[mask == 0] = 0  
+
+        return masked_image
+    
+    
+    def is_yellow_color(self, roi: np.ndarray) -> bool:
+        """
+        Check if the region of interest is yellow in color. 
+
+        :param roi (np.ndarray): Region of interest to check for yellow color.
+
+        :return: bool: True if the region of interest is yellow in color. 
+        """
+        
+        hsv_roi = cv2.cvtColor(roi, cv2.COLOR_RGB2HSV)
+        yellow_mask = cv2.inRange(hsv_roi, self.lower_yellow_, self.upper_yellow_)
+        yellow_pixels = cv2.countNonZero(yellow_mask)
+        total_pixels = roi.shape[0] * roi.shape[1]
+        return yellow_pixels / total_pixels > self.hsv_threshold
+
+    
+    
