@@ -23,6 +23,7 @@ class Task:
     target_pose2: np.ndarray = None
     command: Command = None
     hover_gap: float = 0.1
+    extra_hover: bool = True
 
 
 class Computer:
@@ -99,13 +100,16 @@ class Computer:
                     hover_pose[2, 3] += task.hover_gap
                     q, _ = self.move_command(id + "-0", order, hover_pose, do_async=True, extra_fast=False)
                     order += 1
-                    self.move_command(id + "-1", order, target, start=q, do_async=True)
+                    q, _ = self.move_command(id + "-1", order, target, start=q, do_async=True)
                     order += 1
                     command = Command(id + "-2", CommandTypes.OPEN_GRIPPER, do_async=True, order=order)
                     order += 1
                     self.to_executor.put(command)
-                    command = Command(id + "-3", CommandTypes.MOVE_TO, q, do_async=True, order=order)
-                    self.to_executor.put(command)
+                    if task.extra_hover:
+                        hover_pose[2, 3] += 0.05
+                    q, _ = self.move_command(id + "-3", order, hover_pose, start=q, do_async=True)
+                    #command = Command(id + "-3", CommandTypes.MOVE_TO, q, do_async=True, order=order)
+                    #self.to_executor.put(command)
                     last_q = q
 
 

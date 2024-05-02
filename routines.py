@@ -32,8 +32,10 @@ def get_goal_pose(pose, dynamic_mode=False, blue=False):
 
     vectors = [forward_rotated, up_rotated, left_rotated]
     yaw = None
-    for vector in vectors:
+    names = ["forward", "up", "left"]
+    for name, vector in zip(names, vectors):
         angle = np.arccos(np.dot(vector, up))
+        print(name, angle)
         if np.abs(np.abs(angle) - np.pi / 2) < 0.1:
             yaw = np.arctan2(vector[1], vector[0])
             break
@@ -135,7 +137,7 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
     return len(static_block_poses)
 
 
-def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue, stack_positions: list, config: dict):
+def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue, stack_positions: list, config: dict, timeout = 10):
 
     pos_offsets = config["offset_dynamic"]
     obs = config["dynamic_observation"]
@@ -145,7 +147,11 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue
 
     successful = 0
     last_pose = None
+    last_block = time.time()
     for i in range(len(stack_positions)):
+        now = time.time()
+        if now - last_block > timeout:
+            return successful
         task = Task("observe_dynamic", TaskTypes.MOVE_TO, observation_pose)
         to_computer.put(task)
         observed_blocks = []
@@ -157,6 +163,8 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue
             for name in observed_blocks:
                 block = observed_blocks[name]
                 pose = get_goal_pose(block, dynamic_mode=True, blue=config["blue"])
+                if pose is None:
+                    continue
                 pose[0, 3] += pos_offsets["x"]
                 pose[1, 3] += pos_offsets["y"]
                 pose[2, 3] += pos_offsets["z"]
@@ -174,7 +182,7 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue
                         last_pose = pose
             observed_blocks = []
 
-        delay = 2
+        delay = 2 + abs(diff[0]) * 50
         theta = delay * w
 
         loc = pose[:3, 3]
@@ -207,9 +215,19 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue
         if not result:
             continue
 
-        task = Task("dynamic", TaskTypes.PLACE_BLOCK, stack_positions[successful], hover_gap=0.15)
-        to_computer.put(task)
+        if config["blue"] and 0.5 < stack_positions[successful][2, 3] < 0.55:
+            task = Task("dynamic", TaskTypes.PLACE_BLOCK, stack_positions[successful], hover_gap=0.05, extra_hover=False)
+            to_computer.put(task)
+            midpoint = stack_positions[successful].copy()
+            midpoint[0, 3] -= 0.1
+            midpoint[2, 3] += 0.1
+            task = Task("edge-case", TaskTypes.MOVE_TO, midpoint)
+            to_computer.put(task)
+        else:
+            task = Task("dynamic", TaskTypes.PLACE_BLOCK, stack_positions[successful], hover_gap=0.07)
+            to_computer.put(task)
         successful += 1
+        last_block = time.time()
 
     return successful
 
@@ -232,7 +250,7 @@ def shuffle_blocks(to_computer: Queue, from_positions, to_positions):
         midpoint[1, 3] = from_positions[i][1, 3]
         task = Task(f"shuffle-{10*(to_i+1)}", TaskTypes.MOVE_TO, midpoint)
         to_computer.put(task)
-        task = Task(f"{i}-shuffle-2", TaskTypes.PLACE_BLOCK, to_positions[to_i], hover_gap=0.05)
+        task = Task(f"{i}-shuffle-2", TaskTypes.PLACE_BLOCK, to_positions[to_i], hover_gap=0.05, extra_hover=False)
         to_computer.put(task)
         to_i += 1
 

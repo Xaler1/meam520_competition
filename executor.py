@@ -83,7 +83,7 @@ class Executor:
                 current_loc = current_pose[:3, 3]
                 target_loc = target_pose[:3, 3]
                 #dist = np.linalg.norm(target_loc - current_loc)
-                timing = 1.3 * np.max(diff) + 0.8
+                timing = 1.0 * np.max(diff) + 0.8
                 if command.extra_fast:
                     timing -= 0.8
                 action = Action(id, ActionType.MOVE_TO, target_q=command.target_q)
@@ -120,6 +120,8 @@ class Executor:
             self.to_manipulator.put(action)
             if not command.do_async:
                 self.wait_for_action(id)
+            else:
+                sleep(0.8)
 
         # Getting a list of observed blocks
         elif command.command_type == CommandTypes.GET_OBSERVED_BLOCKS:
