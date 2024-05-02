@@ -74,7 +74,7 @@ class Executor:
     def run_command(self, command: Command, current_config):
         id = command.id
         # Moving to config q
-        print("Executor got command:", id, "| Async:", command.do_async)
+        #print("Executor got command:", id, "| Async:", command.do_async)
         if command.command_type == CommandTypes.MOVE_TO:
             if command.do_async and current_config is not None:
                 diff = np.abs(current_config - command.target_q)
@@ -97,7 +97,7 @@ class Executor:
 
         # Closing the gripper
         elif command.command_type == CommandTypes.CLOSE_GRIPPER:
-            print("Executer got command to close gripper")
+            #print("Executer got command to close gripper")
             action = Action(id, ActionType.CLOSE_GRIPPER)
             self.to_manipulator.put(action)
             if not command.do_async:
@@ -105,7 +105,7 @@ class Executor:
 
         # Grabbing a block
         elif command.command_type == CommandTypes.GRAB_BLOCK:
-            print("Executor got command to grab block")
+            #print("Executor got command to grab block")
             action = Action(id, ActionType.SET_GRIPPER, target_width=0.045, target_force=50)
             self.to_manipulator.put(action)
             if not command.do_async:
@@ -115,7 +115,7 @@ class Executor:
 
         # Opening gripper
         elif command.command_type == CommandTypes.OPEN_GRIPPER:
-            print("Executor got command to open gripper")
+            #print("Executor got command to open gripper")
             action = Action(id, ActionType.OPEN_GRIPPER)
             self.to_manipulator.put(action)
             if not command.do_async:
@@ -123,7 +123,7 @@ class Executor:
 
         # Getting a list of observed blocks
         elif command.command_type == CommandTypes.GET_OBSERVED_BLOCKS:
-            print("Executor got command to get observed blocks")
+            #print("Executor got command to get observed blocks")
             if not self.observations.empty():
                 self.observations.get()
             while True:
@@ -137,7 +137,7 @@ class Executor:
             self.to_main.put(id)
             self.to_main.put(poses)
 
-        print("Executor finished", id)
+        #print("Executor finished", id)
         if command.command_type != CommandTypes.GET_OBSERVED_BLOCKS:
             self.to_main.put(id)
         return current_config
