@@ -39,12 +39,13 @@ class Computer:
         if known_q is None:
             q, _, success, _ = self.ik.inverse(target, start, alpha=0.86)
             if not success:
-                return None, success
+                print(f"--------------------------------- FAILED TO FIND Q for {id} ---------------------------------")
+                return None, False
         else:
             q = known_q
         command = Command(id, CommandTypes.MOVE_TO, q, do_async=do_async, extra_fast=extra_fast, order=order)
         self.to_executor.put(command)
-        return q
+        return q, True
 
     def run(self):
         order = 0
@@ -61,9 +62,9 @@ class Computer:
                 if task.task_type == TaskTypes.MOVE_TO:
                     if id in cache_q:
                         print("Using cached position for", id)
-                        last_q = self.move_command(id, order, target, start=last_q, do_async=False, known_q=cache_q[id])
+                        last_q, _ = self.move_command(id, order, target, start=last_q, do_async=False, known_q=cache_q[id])
                     else:
-                        last_q = self.move_command(id, order, target, start=last_q, do_async=False)
+                        last_q, _ = self.move_command(id, order, target, start=last_q, do_async=False)
                     cache_q[id] = last_q
                     order += 1
 
@@ -71,15 +72,13 @@ class Computer:
                 elif task.task_type == TaskTypes.GRAB_BLOCK:
                     hover_pose = task.target_pose.copy()
                     hover_pose[2, 3] += task.hover_gap
-                    q, success = self.move_command(id + "-0", order, hover_pose, start=last_q, do_async=True, extra_fast=True)
+                    q, success = self.move_command(id + "-0", order, hover_pose, start=last_q, do_async=True, extra_fast=False)
                     if not success:
                         self.to_main.put(False)
                         continue
                     order += 1
                     _, success =  self.move_command(id + "-1", order, target, start=q, do_async=True)
                     if not success:
-                        command = Command(id + "-3", CommandTypes.MOVE_TO, q, do_async=True, order=order)
-                        self.to_executor.put(command)
                         last_q = q
                         self.to_main.put(False)
                         continue
@@ -98,7 +97,7 @@ class Computer:
                 elif task.task_type == TaskTypes.PLACE_BLOCK:
                     hover_pose = task.target_pose.copy()
                     hover_pose[2, 3] += task.hover_gap
-                    q, _ = self.move_command(id + "-0", order, hover_pose, do_async=True, extra_fast=True)
+                    q, _ = self.move_command(id + "-0", order, hover_pose, do_async=True, extra_fast=False)
                     order += 1
                     self.move_command(id + "-1", order, target, start=q, do_async=True)
                     order += 1

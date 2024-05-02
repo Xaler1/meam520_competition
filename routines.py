@@ -42,12 +42,10 @@ def get_goal_pose(pose, dynamic_mode=False, blue=False):
         print("Catastrophic error, failed to determine yaw")
         return
 
-    while yaw > np.pi / 2:
+    while yaw > 0:
         yaw -= np.pi / 2
-    while yaw < -np.pi / 2:
+    while yaw < -np.pi:
         yaw += np.pi / 2
-    if yaw > np.pi / 4:
-        yaw -= np.pi / 2
     if yaw < -np.pi / 4:
         yaw += np.pi / 2
 
@@ -71,7 +69,7 @@ def observe_statics(to_computer: Queue, from_executor: Queue, observation_poses)
         to_computer.put(task)
         
         observed_blocks = get_blocks(to_computer, from_executor)
-        print("observed block:", len(observed_blocks))
+        print("observed blocks:", len(observed_blocks))
         
         for name in observed_blocks:
             block = observed_blocks[name]
@@ -121,14 +119,17 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
 
     print("\n Final Blocks observed:", len(static_block_poses))
 
+    midpoint = euler_to_se3(-np.pi, 0, -np.pi/2, np.array([0.2, 0, 0.45]))
     for i in range(len(static_block_poses)):
         pose = get_goal_pose(static_block_poses[i])
         pose[0, 3] += pos_offsets["x"]
         pose[1, 3] += pos_offsets["y"]
         pose[2, 3] += pos_offsets["z"]
-        task = Task(str(i) + "-grab", TaskTypes.GRAB_BLOCK, pose, hover_gap=0.2)
+
+        task = Task(str(i) + "-grab", TaskTypes.GRAB_BLOCK, pose, hover_gap=0.1)
         to_computer.put(task)
-        task = Task(str(i) + "-stack", TaskTypes.PLACE_BLOCK, stack_positions[i], hover_gap=0.15)
+
+        task = Task(str(i) + "-stack", TaskTypes.PLACE_BLOCK, stack_positions[i], hover_gap=0.11)
         to_computer.put(task)
 
     return len(static_block_poses)
@@ -180,8 +181,6 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue
         rot = pose[:3, :3]
         offset = np.array([0, config["world_center"], 0])
         loc = loc - offset
-        print("\nworld location")
-        print(loc)
 
         # rotate by theta around z axis
         transform = np.array([
@@ -195,8 +194,6 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue
         pose[:3, 3] = loc
         pose[:3, :3] = rot
         np.set_printoptions(precision=3, suppress=True)
-        print("\n target pose")
-        print(pose)
 
         while not from_computer.empty():
             from_computer.get()
@@ -210,7 +207,7 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue
         if not result:
             continue
 
-        task = Task("dynamic", TaskTypes.PLACE_BLOCK, stack_positions[successful])
+        task = Task("dynamic", TaskTypes.PLACE_BLOCK, stack_positions[successful], hover_gap=0.15)
         to_computer.put(task)
         successful += 1
 
@@ -220,9 +217,22 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue
 def shuffle_blocks(to_computer: Queue, from_positions, to_positions):
     to_i = 0
     for i in range(len(from_positions) - 1, -1, -1):
-        task = Task("shuffle", TaskTypes.GRAB_BLOCK, from_positions[i], hover_gap=0.1)
+        midpoint = to_positions[max(to_i - 1, 0)].copy()
+        midpoint[2, 3] = 0.6
+        midpoint[0, 3] = 0.45
+        midpoint[1, 3] = from_positions[i][1, 3]
+        task = Task(f"shuffle-{to_i}", TaskTypes.MOVE_TO, midpoint)
         to_computer.put(task)
-        task = Task("shuffle", TaskTypes.PLACE_BLOCK, to_positions[to_i], hover_gap=0.1)
+        task = Task(f"{i}-shuffle-1", TaskTypes.GRAB_BLOCK, from_positions[i], hover_gap=0.1)
+        to_computer.put(task)
+
+        midpoint = to_positions[to_i].copy()
+        midpoint[2, 3] = 0.6
+        midpoint[0, 3] = 0.45
+        midpoint[1, 3] = from_positions[i][1, 3]
+        task = Task(f"shuffle-{10*(to_i+1)}", TaskTypes.MOVE_TO, midpoint)
+        to_computer.put(task)
+        task = Task(f"{i}-shuffle-2", TaskTypes.PLACE_BLOCK, to_positions[to_i], hover_gap=0.05)
         to_computer.put(task)
         to_i += 1
 

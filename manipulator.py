@@ -8,8 +8,6 @@ from dataclasses import dataclass
 import numpy as np
 from threading import Thread
 from time import sleep
-import logging
-
 
 class ActionType(Enum):
     MOVE_TO = 1
@@ -45,14 +43,12 @@ class Manipulator:
                  from_executor: Queue,
                  static_observations: Queue,
                  dynamic_observations: Queue,
-                 completions: Queue,
-                 logger
+                 completions: Queue
                  ):
         self.from_executor = from_executor
         self.static_observations = static_observations
         self.dynamic_observations = dynamic_observations
         self.completions = completions
-        self.logger = logger
         self.camera_transform = None
 
     def run(self):

@@ -82,12 +82,10 @@ class Executor:
                 _, target_pose = self.fk.forward(command.target_q)
                 current_loc = current_pose[:3, 3]
                 target_loc = target_pose[:3, 3]
-                dist = np.linalg.norm(target_loc - current_loc)
-                timing = 1 * dist + 0.8
+                #dist = np.linalg.norm(target_loc - current_loc)
+                timing = 1.3 * np.max(diff) + 0.8
                 if command.extra_fast:
                     timing -= 0.8
-                print("timing", timing)
-                sleep(timing)
                 action = Action(id, ActionType.MOVE_TO, target_q=command.target_q)
                 self.to_manipulator.put(action)
                 sleep(timing)
@@ -113,7 +111,7 @@ class Executor:
             if not command.do_async:
                 self.wait_for_action(id)
             else:
-                sleep(0.3)
+                sleep(0.8)
 
         # Opening gripper
         elif command.command_type == CommandTypes.OPEN_GRIPPER:

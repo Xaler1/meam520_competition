@@ -27,8 +27,8 @@ import json
 import os
 
 
+team = rospy.get_param("team")
 if len(sys.argv) < 2:
-    team = rospy.get_param("team")
     config = f"config/{team}1.json"
 else:
     config = sys.argv[1]
@@ -39,18 +39,19 @@ with open(config, "r") as f:
 class KnownPoses(Enum):
     STATIC_OBSERVATION = euler_to_se3(-np.pi, 0, 0, np.array([0.5, -0.15, 0.5]))
 
+vertical = 8 if team == 'red' else 7
 
 st0 = config["stack_0"]
 STATIC_STACK = [
-    euler_to_se3(-np.pi, 0, 0, np.array([st0["x"], st0["y"], st0["z"] + i * 0.05])) for i in range(7)
+    euler_to_se3(-np.pi, 0, -np.pi/2, np.array([st0["x"], st0["y"], st0["z"] + i * 0.05])) for i in range(vertical)
 ]
 
 for i in range(5):
-    STATIC_STACK.append(euler_to_se3(-np.pi, -np.pi / 2, 0, np.array([st0["x"], st0["y"], st0["z"] + 0.35 + i * 0.05])))
+    STATIC_STACK.append(euler_to_se3(-np.pi, -np.pi / 2, 0, np.array([st0["x"], st0["y"], st0["z"] + (0.05 * vertical) + i * 0.05])))
 
 st1 = config["stack_1"]
 DYNAMIC_STACK = [
-    euler_to_se3(-np.pi, 0, 0, np.array([st1["x"], st1["y"], st1["z"] + i * 0.05])) for i in range(8)
+    euler_to_se3(-np.pi, 0, -np.pi/2, np.array([st1["x"], st1["y"], st1["z"] + i * 0.05])) for i in range(8)
 ]
 
 class KnownConfigs(Enum):
@@ -91,8 +92,8 @@ if __name__ == "__main__":
     executor_process.start()
     manipulator_process = Process(target=manipulator.run)
     manipulator_process.start()
-    observer_process = Process(target=observer.run)
-    observer_process.start()
+    # observer_process = Process(target=observer.run)
+    # observer_process.start()
 
     children = [computer_process, executor_process, manipulator_process]
     master_pid = os.getpid()
@@ -124,5 +125,7 @@ if __name__ == "__main__":
     dyn_h = stack_dynamic(main_to_computer, executor_to_main, computer_to_main, DYNAMIC_STACK[:4], config)
     stat_h = stack_static(main_to_computer, executor_to_main, STATIC_STACK[:4], config)
     shuffle_blocks(main_to_computer, DYNAMIC_STACK[:dyn_h], STATIC_STACK[stat_h:stat_h + dyn_h])
-    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, STATIC_STACK[stat_h+dyn_h:], config)
-    # calibration(main_to_computer, executor_to_main, config)
+    dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, computer_to_main, STATIC_STACK[stat_h+dyn_h:12], config)
+
+    #shuffle_blocks(main_to_computer, DYNAMIC_STACK[:4], STATIC_STACK[4:8])
+    #calibration(main_to_computer, executor_to_main, config)
