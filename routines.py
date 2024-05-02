@@ -271,7 +271,8 @@ def calibration(to_computer: Queue, from_executor, config: dict):
             counter += 1
 
     calibration_print("Completed Static Observation positions:")
-    print(obs)
+    for pose in obs:
+        print(pose)
     print("\n\n")
 
     calibration_print("Static block horizontal offsets")

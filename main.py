@@ -29,7 +29,7 @@ import os
 
 team = rospy.get_param("team")
 if len(sys.argv) < 2:
-    config = f"config/{team}1.json"
+    config = f"{team}1.json"
 else:
     config = sys.argv[1]
 
@@ -125,6 +125,8 @@ if __name__ == "__main__":
     dyn_h = stack_dynamic(main_to_computer, executor_to_main, computer_to_main, DYNAMIC_STACK[:4], config)
     stat_h = stack_static(main_to_computer, executor_to_main, STATIC_STACK[:4], config)
     shuffle_blocks(main_to_computer, DYNAMIC_STACK[:dyn_h], STATIC_STACK[stat_h:stat_h + dyn_h])
+    task = Task("other_dynamic", TaskTypes.MOVE_TO, STATIC_STACK[stat_h+dyn_h+1])
+    main_to_computer.put(task)
     dynamic_grabbed = stack_dynamic(main_to_computer, executor_to_main, computer_to_main, STATIC_STACK[stat_h+dyn_h:12], config)
 
     #shuffle_blocks(main_to_computer, DYNAMIC_STACK[:4], STATIC_STACK[4:8])
