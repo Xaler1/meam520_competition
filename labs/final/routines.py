@@ -213,7 +213,7 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue
                         last_pose = pose
             observed_blocks = []
 
-        delay = 2 + abs(diff[0]) * 50
+        delay = 2.5 + abs(diff[0]) * 50
         theta = delay * w
 
         loc = pose[:3, 3]

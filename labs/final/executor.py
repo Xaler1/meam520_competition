@@ -83,7 +83,7 @@ class Executor:
                 current_loc = current_pose[:3, 3]
                 target_loc = target_pose[:3, 3]
                 #dist = np.linalg.norm(target_loc - current_loc)
-                timing = 1.0 * np.max(diff) + 0.8
+                timing = 1.3 * np.max(diff) + 1.3
                 if command.extra_fast:
                     timing -= 0.8
                 action = Action(id, ActionType.MOVE_TO, target_q=command.target_q)
