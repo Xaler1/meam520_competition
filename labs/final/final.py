@@ -20,7 +20,6 @@ from multiprocessing import Process, Queue
 from computer import Computer, Task, TaskTypes
 from executor import Executor, Command, CommandTypes
 from manipulator import Manipulator, Action, ActionType
-from observer import Observer
 from time import sleep
 from routines import stack_static, stack_dynamic, shuffle_blocks, calibration
 import json
@@ -83,7 +82,6 @@ if __name__ == "__main__":
                               static_observations,
                               dynamic_observations,
                               manipulator_to_executor)
-    observer = Observer(dynamic_locations, dynamic_observations, team)
 
 
     computer_process = Process(target=computer.run)
@@ -92,8 +90,6 @@ if __name__ == "__main__":
     executor_process.start()
     manipulator_process = Process(target=manipulator.run)
     manipulator_process.start()
-    # observer_process = Process(target=observer.run)
-    # observer_process.start()
 
     children = [computer_process, executor_process, manipulator_process]
     master_pid = os.getpid()
@@ -122,7 +118,7 @@ if __name__ == "__main__":
     task = Task("open", TaskTypes.BYPASS, command=command)
     main_to_computer.put(task)
 
-    dyn_h = 4 #stack_dynamic(main_to_computer, executor_to_main, computer_to_main, DYNAMIC_STACK[:4], config)
+    dyn_h = stack_dynamic(main_to_computer, executor_to_main, computer_to_main, DYNAMIC_STACK[:4], config)
     stat_h = stack_static(main_to_computer, executor_to_main, STATIC_STACK[:4], config)
     shuffle_blocks(main_to_computer, DYNAMIC_STACK[:dyn_h], STATIC_STACK[stat_h:stat_h + dyn_h])
     task = Task("other_dynamic", TaskTypes.MOVE_TO, STATIC_STACK[stat_h+dyn_h+3])
