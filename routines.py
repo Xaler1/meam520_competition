@@ -7,6 +7,7 @@ import time
 from time import sleep
 import random
 
+
 def get_blocks(to_computer: Queue, from_executor: Queue):
     command = Command("observe", CommandTypes.GET_OBSERVED_BLOCKS)
     task = Task("observe", TaskTypes.BYPASS, command=command)
@@ -20,7 +21,8 @@ def get_blocks(to_computer: Queue, from_executor: Queue):
     observed_blocks = from_executor.get()
     return observed_blocks
 
-def get_goal_pose(pose, dynamic_mode=False, blue=False):
+
+def get_goal_loc(pose, dynamic_mode=False, blue=False):
     rot = pose[:3, :3]
     loc = pose[:3, 3]
     forward = np.array([1, 0, 0])
@@ -31,18 +33,16 @@ def get_goal_pose(pose, dynamic_mode=False, blue=False):
     left_rotated = rot @ left.T
 
     vectors = [forward_rotated, up_rotated, left_rotated]
-    yaw = None
-    names = ["forward", "up", "left"]
-    for name, vector in zip(names, vectors):
+    horizontal = []
+    for vector in vectors:
         angle = np.arccos(np.dot(vector, up))
-        print(name, angle)
         if np.abs(np.abs(angle) - np.pi / 2) < 0.1:
-            yaw = np.arctan2(vector[1], vector[0])
-            break
+            horizontal.append(vector)
 
-    if yaw is None:
-        print("Catastrophic error, failed to determine yaw")
-        return
+    if len(horizontal) <= 1:
+        print("Inconsistent axis placement, probably a ghost block")
+        return None
+    yaw = np.arctan2(horizontal[0][1], horizontal[0][0])
 
     while yaw > 0:
         yaw -= np.pi / 2
@@ -53,26 +53,53 @@ def get_goal_pose(pose, dynamic_mode=False, blue=False):
 
     if dynamic_mode:
         if blue:
-            while yaw > - np.pi/4:
-                yaw -= np.pi/2
+            while yaw > - np.pi / 4:
+                yaw -= np.pi / 2
         else:
             while yaw < np.pi / 4:
                 yaw += np.pi / 2
 
-
     loc[2] = 0.225
-    pose = euler_to_se3(-np.pi, 0, yaw, loc)
-    return pose
+    #pose = euler_to_se3(-np.pi, 0, yaw, loc)
+    return np.concatenate([np.array([-np.pi, 0, yaw]), loc])
+
+
+def fix_near_blocks(static_block_locs):
+    static_block_poses = []
+    for i in range(len(static_block_locs)):
+        loc = static_block_locs[i]
+        yaw = loc[2]
+        right = np.array([np.sin(yaw) * 0.05, np.cos(yaw) * -0.05])
+        left = np.array([np.sin(yaw) * -0.05, np.cos(yaw) * 0.05])
+        right += loc[3:5]
+        left += loc[3:5]
+
+        for j in range(len(static_block_locs)):
+            if i == j:
+                continue
+            other = static_block_locs[j]
+            other_loc = other[3:5]
+            if np.linalg.norm(other_loc - right) < 0.05 or np.linalg.norm(other_loc - left) < 0.05:
+                if yaw > 0:
+                    yaw -= np.pi / 2
+                else:
+                    yaw += np.pi / 2
+                loc[2] = yaw
+                break
+        static_block_poses.append(euler_to_se3(loc[0], loc[1], loc[2], loc[3:]))
+
+    return static_block_poses
+
 
 def observe_statics(to_computer: Queue, from_executor: Queue, observation_poses):
     blocks = {}
     for i, pose in enumerate(observation_poses):
         task = Task(f"observe_static-{i}", TaskTypes.MOVE_TO, pose)
         to_computer.put(task)
-        
+
         observed_blocks = get_blocks(to_computer, from_executor)
         print("observed blocks:", len(observed_blocks))
-        
+
         for name in observed_blocks:
             block = observed_blocks[name]
             if name not in blocks:
@@ -97,7 +124,7 @@ def observe_statics(to_computer: Queue, from_executor: Queue, observation_poses)
     print("\n\n")
     for pose in static_block_poses:
         print(pose)
-        if get_goal_pose(pose) is None:
+        if get_goal_loc(pose) is None:
             continue
         valid = True
         for other in filtered_block_poses:
@@ -113,17 +140,20 @@ def observe_statics(to_computer: Queue, from_executor: Queue, observation_poses)
 
 def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list, config: dict):
     obs = config["static_observations"]
-    observation_poses = [euler_to_se3(pose["roll"], pose["pitch"], pose["yaw"], np.array([pose["x"], pose["y"], pose["z"]])) for pose in obs]
+    observation_poses = [
+        euler_to_se3(pose["roll"], pose["pitch"], pose["yaw"], np.array([pose["x"], pose["y"], pose["z"]])) for pose in
+        obs]
 
     pos_offsets = config["offset_static"]
 
     static_block_poses = observe_statics(to_computer, from_executor, observation_poses)
+    static_block_locs = [get_goal_loc(pose) for pose in static_block_poses]
+    static_block_poses = fix_near_blocks(static_block_locs)
 
     print("\n Final Blocks observed:", len(static_block_poses))
 
-    midpoint = euler_to_se3(-np.pi, 0, -np.pi/2, np.array([0.2, 0, 0.45]))
     for i in range(len(static_block_poses)):
-        pose = get_goal_pose(static_block_poses[i])
+        pose = static_block_poses[i]
         pose[0, 3] += pos_offsets["x"]
         pose[1, 3] += pos_offsets["y"]
         pose[2, 3] += pos_offsets["z"]
@@ -137,8 +167,8 @@ def stack_static(to_computer: Queue, from_executor: Queue, stack_positions: list
     return len(static_block_poses)
 
 
-def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue, stack_positions: list, config: dict, timeout = 10):
-
+def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue, stack_positions: list, config: dict,
+                  timeout=10):
     pos_offsets = config["offset_dynamic"]
     obs = config["dynamic_observation"]
 
@@ -162,9 +192,10 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue
                 observed_blocks = get_blocks(to_computer, from_executor)
             for name in observed_blocks:
                 block = observed_blocks[name]
-                pose = get_goal_pose(block, dynamic_mode=True, blue=config["blue"])
-                if pose is None:
+                loc = get_goal_loc(block, dynamic_mode=True, blue=config["blue"])
+                if loc is None:
                     continue
+                pose = euler_to_se3(loc[0], loc[1], loc[2], loc[3:])
                 pose[0, 3] += pos_offsets["x"]
                 pose[1, 3] += pos_offsets["y"]
                 pose[2, 3] += pos_offsets["z"]
@@ -216,7 +247,8 @@ def stack_dynamic(to_computer: Queue, from_executor: Queue, from_computer: Queue
             continue
 
         if config["blue"] and 0.5 < stack_positions[successful][2, 3] < 0.55:
-            task = Task("dynamic", TaskTypes.PLACE_BLOCK, stack_positions[successful], hover_gap=0.05, extra_hover=False)
+            task = Task("dynamic", TaskTypes.PLACE_BLOCK, stack_positions[successful], hover_gap=0.05,
+                        extra_hover=False)
             to_computer.put(task)
             midpoint = stack_positions[successful].copy()
             midpoint[0, 3] -= 0.1
@@ -248,19 +280,23 @@ def shuffle_blocks(to_computer: Queue, from_positions, to_positions):
         midpoint[2, 3] = 0.6
         midpoint[0, 3] = 0.45
         midpoint[1, 3] = from_positions[i][1, 3]
-        task = Task(f"shuffle-{10*(to_i+1)}", TaskTypes.MOVE_TO, midpoint)
+        task = Task(f"shuffle-{10 * (to_i + 1)}", TaskTypes.MOVE_TO, midpoint)
         to_computer.put(task)
         task = Task(f"{i}-shuffle-2", TaskTypes.PLACE_BLOCK, to_positions[to_i], hover_gap=0.05, extra_hover=False)
         to_computer.put(task)
         to_i += 1
 
+
 def calibration_print(text):
     print("--calibration--", text)
+
 
 def calibration(to_computer: Queue, from_executor, config: dict):
     calibration_print("Starting calibration")
     obs = config["static_observations"]
-    observation_poses = [euler_to_se3(pose["roll"], pose["pitch"], pose["yaw"], np.array([pose["x"], pose["y"], pose["z"]])) for pose in obs]
+    observation_poses = [
+        euler_to_se3(pose["roll"], pose["pitch"], pose["yaw"], np.array([pose["x"], pose["y"], pose["z"]])) for pose in
+        obs]
 
     pos_offsets = config["offset_static"]
 
@@ -301,7 +337,7 @@ def calibration(to_computer: Queue, from_executor, config: dict):
     satisfied = False
     while not satisfied:
         calibration_print(f"Current x,y: {pos_offsets['x']}, {pos_offsets['y']}")
-        pose = get_goal_pose(sample_pose)
+        pose = get_goal_loc(sample_pose)
         pose[0, 3] += pos_offsets["x"]
         pose[1, 3] += pos_offsets["y"]
         pose[2, 3] += pos_offsets["z"]
@@ -323,7 +359,7 @@ def calibration(to_computer: Queue, from_executor, config: dict):
     satisfied = False
     while not satisfied:
         calibration_print(f"Current z: {pos_offsets['z']}")
-        pose = get_goal_pose(sample_pose)
+        pose = get_goal_loc(sample_pose)
         pose[0, 3] += pos_offsets["x"]
         pose[1, 3] += pos_offsets["y"]
         pose[2, 3] += pos_offsets["z"]
@@ -340,6 +376,3 @@ def calibration(to_computer: Queue, from_executor, config: dict):
 
     calibration_print("Completed Static block offsets:")
     print(pos_offsets)
-
-
-

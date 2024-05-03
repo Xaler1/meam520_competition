@@ -122,7 +122,7 @@ if __name__ == "__main__":
     task = Task("open", TaskTypes.BYPASS, command=command)
     main_to_computer.put(task)
 
-    dyn_h = stack_dynamic(main_to_computer, executor_to_main, computer_to_main, DYNAMIC_STACK[:4], config)
+    dyn_h = 4 #stack_dynamic(main_to_computer, executor_to_main, computer_to_main, DYNAMIC_STACK[:4], config)
     stat_h = stack_static(main_to_computer, executor_to_main, STATIC_STACK[:4], config)
     shuffle_blocks(main_to_computer, DYNAMIC_STACK[:dyn_h], STATIC_STACK[stat_h:stat_h + dyn_h])
     task = Task("other_dynamic", TaskTypes.MOVE_TO, STATIC_STACK[stat_h+dyn_h+3])
